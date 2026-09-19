@@ -270,8 +270,8 @@ function bindAdmin(){
 function bindCalendar(){
  if($("#calDate"))$("#calDate").onchange=e=>{state.date=e.target.value;render()};
  if($("#techFilter"))$("#techFilter").onchange=e=>{state.techFilter=e.target.value;render()};
- $("[data-cal-view]").forEach(b=>b.onclick=()=>{state.calendarView=b.dataset.calView;render()});
- $("[data-cal-date]").forEach(el=>el.onclick=e=>{if(e.target.closest("[data-report],[data-edit],[data-del]"))return;state.date=el.dataset.calDate;state.calendarView="day";render()});
+ $$("[data-cal-view]").forEach(b=>b.onclick=()=>{state.calendarView=b.dataset.calView;render()});
+ $$("[data-cal-date]").forEach(el=>el.onclick=e=>{if(e.target.closest("[data-report],[data-edit],[data-del]"))return;state.date=el.dataset.calDate;state.calendarView="day";render()});
  if($("#calToday"))$("#calToday").onclick=()=>{state.date=today();render()};
  if($("#calPrev"))$("#calPrev").onclick=()=>{state.date=shiftPeriod(state.date,-1,state.calendarView);render()};
  if($("#calNext"))$("#calNext").onclick=()=>{state.date=shiftPeriod(state.date,1,state.calendarView);render()};
@@ -295,8 +295,8 @@ function bindUsers(){
  const form=$("#userForm"); if(!form)return;
  const reset=()=>{form.reset();$("#userId").value="";$("#saveUser").textContent="Créer l’utilisateur";$("#cancelUser").style.display="none"};
  $("#cancelUser").onclick=reset;
- $("[data-user-edit]").forEach(b=>b.onclick=()=>{const u=state.users.find(x=>x.id===b.dataset.userEdit);if(!u)return;$("#userId").value=u.id;$("#userName").value=u.name;$("#userRole").value=u.role;$("#userEmail").value=u.email;$("#userCode").value=u.code;$("#saveUser").textContent="Enregistrer les modifications";$("#cancelUser").style.display="inline-block";window.scrollTo({top:0,behavior:"smooth"})});
- $("[data-user-toggle]").forEach(b=>b.onclick=()=>{const u=state.users.find(x=>x.id===b.dataset.userToggle);if(!u)return;if(u.id===state.user.id&&u.active!==false)return alert("Tu ne peux pas désactiver ton propre compte pendant que tu es connecté.");u.active=u.active===false?true:false;save();render()});
+ $$("[data-user-edit]").forEach(b=>b.onclick=()=>{const u=state.users.find(x=>x.id===b.dataset.userEdit);if(!u)return;$("#userId").value=u.id;$("#userName").value=u.name;$("#userRole").value=u.role;$("#userEmail").value=u.email;$("#userCode").value=u.code;$("#saveUser").textContent="Enregistrer les modifications";$("#cancelUser").style.display="inline-block";window.scrollTo({top:0,behavior:"smooth"})});
+ $$("[data-user-toggle]").forEach(b=>b.onclick=()=>{const u=state.users.find(x=>x.id===b.dataset.userToggle);if(!u)return;if(u.id===state.user.id&&u.active!==false)return alert("Tu ne peux pas désactiver ton propre compte pendant que tu es connecté.");u.active=u.active===false?true:false;save();render()});
  form.onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(form));d.email=d.email.trim().toLowerCase();d.code=d.code.trim();if(d.code.length<4)return alert("Le code doit contenir au moins 4 caractères.");const duplicate=state.users.find(u=>u.email===d.email&&u.id!==d.id);if(duplicate)return alert("Un utilisateur utilise déjà cette adresse e-mail.");if(d.id){state.users=state.users.map(u=>u.id===d.id?{...u,name:d.name.trim(),role:d.role,email:d.email,code:d.code}:u)}else{state.users.push({id:crypto.randomUUID(),name:d.name.trim(),role:d.role,email:d.email,code:d.code,active:true})}save();alert(d.id?"Utilisateur modifié.":"Utilisateur créé.");render()}
 }
 function tech(){
@@ -304,7 +304,7 @@ function tech(){
  $("#app").innerHTML=shell("Espace technicien",'<div class="card">'+calendarControls([],false)+calendarBody(list,false)+'</div>');
  $("#logout").onclick=()=>{state.user=null;render()};
  bindCalendar();
- $("[data-report]").forEach(b=>b.onclick=()=>report(b.dataset.report))
+ $$("[data-report]").forEach(b=>b.onclick=()=>report(b.dataset.report))
 }
 function report(id){
  const a=state.appts.find(x=>x.id===id), passage=a.passage||1;
