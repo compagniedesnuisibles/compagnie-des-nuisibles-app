@@ -337,7 +337,7 @@ function tech(){
  $("#app").innerHTML=shell("Espace technicien",'<div class="card">'+calendarControls([],false)+calendarBody(list,false)+'</div>');
  $("#logout").onclick=()=>{state.user=null;render()};
  bindCalendar();
- $("[data-report]").forEach(b=>b.onclick=()=>report(b.dataset.report));
+ $$("[data-report]").forEach(b=>b.onclick=()=>report(b.dataset.report));
  bindPdfButtons()
 }
 function report(id){
