@@ -552,7 +552,7 @@ function shell(sub,body){
 }
 function render(){if(!state.user)return login();state.user.role==="admin"?admin():tech()}
 function login(){
- $("#app").innerHTML='<div class="login"><div class="card"><div class="login-head"><div class="logo">CN</div><div><div class="brand" style="font-size:1.15rem">Compagnie des Nuisibles</div><div class="muted">V5 · Espace interventions synchronisé</div></div></div><form id="login"><div class="field"><label>E-mail professionnel</label><input name="email" type="email" required autocomplete="username"></div><div class="field"><label>Code d’accès</label><input name="code" type="password" minlength="6" required autocomplete="current-password" placeholder="6 caractères minimum"></div><button class="btn btn-primary" style="width:100%">Se connecter</button></form><button id="bootstrap" class="btn btn-soft" style="width:100%;margin-top:10px">Première configuration administrateur</button><div class="muted" style="margin-top:13px">Les rendez-vous et rapports sont maintenant synchronisés entre les appareils.</div></div></div>';
+ $("#app").innerHTML='<div class="login"><div class="card"><div class="login-head"><div class="logo">CN</div><div><div class="brand" style="font-size:1.15rem">Compagnie des Nuisibles</div><div class="muted">V5 · Espace interventions synchronisé</div></div></div><form id="login"><div class="field"><label>E-mail professionnel</label><input name="email" type="email" required autocomplete="username"></div><div class="field"><label>Code d’accès</label><input name="code" type="password" minlength="6" required autocomplete="current-password" placeholder="6 caractères minimum"></div><button class="btn btn-primary" style="width:100%">Se connecter</button></form><div class="muted" style="margin-top:13px">Les rendez-vous et rapports sont maintenant synchronisés entre les appareils.</div></div></div>';
  $("#login").onsubmit=async e=>{
   e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));const btn=e.currentTarget.querySelector("button");
   btn.disabled=true;btn.textContent="Connexion...";
@@ -560,16 +560,6 @@ function login(){
   if(error){btn.disabled=false;btn.textContent="Se connecter";return alert("Connexion impossible : "+error.message)}
   try{await loadData();startRealtime();render()}catch(err){alert(err.message);render()}
  };
- $("#bootstrap").onclick=async()=>{
-  const name=prompt("Ton nom pour le compte administrateur :","Administrateur");
-  if(!name)return;
-  const code=prompt("Choisis un code d’accès de 6 caractères minimum :");
-  if(!code||code.length<6)return alert("Le code doit contenir au moins 6 caractères.");
-  const {data,error}=await sb.auth.signUp({email:"compagniedesnuisibles@gmail.com",password:code,options:{data:{name}}});
-  if(error)return alert("Création impossible : "+error.message);
-  if(data.session){await loadData();startRealtime();render()}
-  else alert("Compte créé. Vérifie l’e-mail compagniedesnuisibles@gmail.com pour confirmer le compte, puis connecte-toi.")
- }
 }
 function nav(){
  const items=[["planning","▦","Planning"],["new","+","Nouvelle intervention"],["history","↺","Historique"],["users","◉","Utilisateurs"],["company","⚙","Société"]];
