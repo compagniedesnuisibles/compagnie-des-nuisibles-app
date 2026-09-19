@@ -78,15 +78,15 @@ function report(id){
  '<form id="reportForm" style="margin-top:14px">'+
  '<div class="field"><label>Mode de paiement</label><select id="payment"><option value="">Choisir</option><option>Carte bancaire</option><option>Espèces</option><option>Virement</option><option>Chèque</option><option>Non payé</option></select></div>'+
  '<div class="field"><label>Commentaire / rapport</label><textarea id="reportText" required>'+esc(a.report||"")+'</textarea></div>'+
- (passage===1?'<div class="card" style="background:#f0fdf4;border-color:#bbf7d0"><label style="display:flex;gap:10px;align-items:center"><input id="needSecond" type="checkbox" style="width:auto"> Deuxième passage nécessaire</label><div id="secondFields" style="display:none;margin-top:12px"><div class="grid grid2"><div class="field"><label>Date du 2e passage</label><input id="secondDate" type="date"></div><div class="field"><label>Heure</label><input id="secondTime" type="time" value="'+esc(a.start)+'"></div></div><div class="muted">Le rendez-vous sera automatiquement ajouté au planning de ce technicien.</div></div></div>':'')+
+ (passage===1?'<div class="card" style="background:#f0fdf4;border-color:#86efac"><div class="field"><label>Faut-il programmer un 2e passage ?</label><select id="needSecond"><option value="no">Non</option><option value="yes">Oui, programmer le 2e passage</option></select></div><div id="secondFields" style="display:none;margin-top:12px"><div class="field"><label>Date du 2e passage</label><input id="secondDate" type="date" min="'+today()+'"></div><div class="field"><label>Heure du 2e passage</label><input id="secondTime" type="time" value="'+esc(a.start)+'"></div><div class="muted">Après validation, le rendez-vous sera ajouté automatiquement au planning de ce technicien et visible par l’administrateur.</div></div></div>':'')+
  '<div class="field"><label>Signature du client</label><canvas id="sig"></canvas><button id="clearSig" type="button" class="btn btn-soft" style="margin-top:8px">Effacer</button></div>'+
  '<div class="actions"><button class="btn btn-primary">Valider le rapport</button><button id="back" type="button" class="btn btn-soft">Retour</button></div></form></div>');
  $("#logout").onclick=()=>{state.user=null;render()};$("#back").onclick=render;setupSig(a.signature);
- if($("#needSecond"))$("#needSecond").onchange=e=>{$("#secondFields").style.display=e.target.checked?"block":"none";if(e.target.checked)$("#secondDate").required=true;else $("#secondDate").required=false};
+ if($("#needSecond"))$("#needSecond").onchange=e=>{const yes=e.target.value==="yes";$("#secondFields").style.display=yes?"block":"none";$("#secondDate").required=yes;$("#secondTime").required=yes};
  $("#reportForm").onsubmit=e=>{
    e.preventDefault();
    a.report=$("#reportText").value.trim();a.payment=$("#payment").value;a.signature=$("#sig").toDataURL("image/png");a.status="done";
-   if(passage===1 && $("#needSecond")?.checked){
+   if(passage===1 && $("#needSecond")?.value==="yes"){
      const d=$("#secondDate").value,t=$("#secondTime").value;
      if(!d||!t)return alert("Choisis la date et l’heure du deuxième passage.");
      const exists=state.appts.some(x=>x.parentId===a.id&&x.passage===2);
@@ -94,7 +94,7 @@ function report(id){
        state.appts.push({id:crypto.randomUUID(),date:d,start:t,end:addHour(t),client:a.client,address:a.address,type:a.type,technician:a.technician,techEmail:a.techEmail,notes:"Deuxième passage programmé par le technicien depuis le rapport du passage 1.",status:"todo",report:"",signature:"",payment:"",passage:2,parentId:a.id});
      }
    }
-   save();alert("Rapport enregistré"+(passage===1&&$("#needSecond")?.checked?" et deuxième passage ajouté au planning.":"."));
+   save();alert("Rapport enregistré"+(passage===1&&$("#needSecond")?.value==="yes"?" et deuxième passage ajouté au planning.":"."));
    render()
  }
 }
