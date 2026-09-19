@@ -490,7 +490,7 @@ let realtimeChannel=null;
 let state={
  user:null,tab:"planning",date:today(),calendarView:"day",techFilter:"all",
  users:[],appts:[],
- company:{name:"Compagnie des Nuisibles",siret:"919 530 949 00016",address:"14 rue de Thionville, 75019 Paris",phone:"07 59 67 55 26",email:"compagniedesnuisibles@gmail.com",website:"compagniedesnuisibles.com"}
+ company:{name:"Compagnie des Nuisibles",siret:"919 530 949 00016",address:"14 rue de Thionville, 75019 Paris",phone:"07 59 67 55 26",email:"compagniedesnuisibles@gmail.com",website:"compagniedesnuisibles.com"},lastCredentials:null
 };
 
 function dbToAppt(r){
@@ -630,9 +630,10 @@ function form(id=""){
 }
 function history(){return '<div class="card"><h2>Historique</h2>'+[...state.appts].sort((a,b)=>(b.date+b.start).localeCompare(a.date+a.start)).map(a=>card(a,true)).join("")+'</div>'}
 function usersView(){
- const admins=state.users.filter(u=>u.role==="admin"),techs=state.users.filter(u=>u.role==="tech");
+ const admins=state.users.filter(u=>u.role==="admin"),techs=state.users.filter(u=>u.role==="tech"),cred=state.lastCredentials;
  const uc=u=>'<div class="appt" style="grid-template-columns:52px minmax(0,1fr) auto"><div class="logo" style="width:44px;height:44px">'+esc((u.name||"?").slice(0,2).toUpperCase())+'</div><div><strong>'+esc(u.name)+'</strong><div class="muted">'+esc(u.email)+'</div><span class="badge">'+(u.role==="admin"?"Administrateur":"Technicien")+'</span><span class="badge '+(u.active?"done":"")+'">'+(u.active?"Actif":"Désactivé")+'</span></div><div class="actions"><button class="btn btn-soft" data-user-edit="'+u.id+'">Modifier</button><button class="btn '+(u.active?"btn-danger":"btn-soft")+'" data-user-toggle="'+u.id+'">'+(u.active?"Désactiver":"Réactiver")+'</button></div></div>';
- return '<div class="grid grid2"><div class="card"><h2>Créer / modifier un utilisateur</h2><form id="userForm"><input type="hidden" name="id" id="userId"><div class="field"><label>Nom</label><input name="name" id="userName" required></div><div class="field"><label>Rôle</label><select name="role" id="userRole"><option value="tech">Technicien</option><option value="admin">Administrateur</option></select></div><div class="field"><label>E-mail</label><input name="email" id="userEmail" type="email" required></div><div class="field"><label>Code d’accès</label><input name="code" id="userCode" type="password" minlength="6" placeholder="6 caractères minimum"></div><div class="muted" style="margin-bottom:12px">En modification, laisse le code vide pour le conserver.</div><div class="actions"><button class="btn btn-primary" id="saveUser">Créer l’utilisateur</button><button type="button" class="btn btn-soft" id="cancelUser" style="display:none">Annuler</button></div></form></div><div><div class="card"><h2>Techniciens</h2>'+(techs.length?techs.map(uc).join(""):'<div class="muted">Aucun technicien.</div>')+'</div><div class="card"><h2>Administrateurs</h2>'+(admins.length?admins.map(uc).join(""):'<div class="muted">Aucun administrateur.</div>')+'</div></div></div>'
+ const access=cred?'<div class="card" style="border:2px solid #1aa36f;background:#f4fbf8"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><div class="badge green" style="margin-bottom:8px">ACCÈS CRÉÉ</div><h2 style="margin:0 0 4px">Identifiants prêts à envoyer</h2><div class="muted">'+esc(cred.name)+' · '+(cred.role==="admin"?"Administrateur":"Technicien")+'</div></div><button type="button" class="btn btn-soft" id="closeCredentials">Fermer</button></div><div style="margin-top:16px;display:grid;gap:10px"><div class="field"><label>E-mail</label><div style="display:flex;gap:8px"><input id="credEmail" readonly value="'+esc(cred.email)+'"><button type="button" class="btn btn-soft" data-copy-value="email">Copier</button></div></div><div class="field"><label>Code d’accès</label><div style="display:flex;gap:8px"><input id="credPassword" readonly value="'+esc(cred.password)+'"><button type="button" class="btn btn-soft" data-copy-value="password">Copier</button></div></div><div class="field"><label>Lien de connexion</label><div style="display:flex;gap:8px"><input id="credLink" readonly value="'+esc(cred.link)+'"><button type="button" class="btn btn-soft" data-copy-value="link">Copier</button></div></div><button type="button" class="btn btn-primary" id="copyAllCredentials">Copier tout pour envoyer au technicien</button></div></div>':"";
+ return '<div>'+access+'<div class="grid grid2"><div class="card"><h2>Créer / modifier un utilisateur</h2><form id="userForm"><input type="hidden" name="id" id="userId"><div class="field"><label>Nom</label><input name="name" id="userName" required></div><div class="field"><label>Rôle</label><select name="role" id="userRole"><option value="tech">Technicien</option><option value="admin">Administrateur</option></select></div><div class="field"><label>E-mail</label><input name="email" id="userEmail" type="email" required></div><div class="field"><label>Code d’accès</label><input name="code" id="userCode" type="password" minlength="6" placeholder="6 caractères minimum"></div><div class="muted" style="margin-bottom:12px">En modification, laisse le code vide pour le conserver.</div><div class="actions"><button class="btn btn-primary" id="saveUser">Créer l’utilisateur</button><button type="button" class="btn btn-soft" id="cancelUser" style="display:none">Annuler</button></div></form></div><div><div class="card"><h2>Techniciens</h2>'+(techs.length?techs.map(uc).join(""):'<div class="muted">Aucun technicien.</div>')+'</div><div class="card"><h2>Administrateurs</h2>'+(admins.length?admins.map(uc).join(""):'<div class="muted">Aucun administrateur.</div>')+'</div></div></div></div>'
 }
 function companyView(){
  const x=state.company||{};
@@ -671,13 +672,41 @@ async function callManageUser(body){
  const res=await fetch(SUPABASE_URL+"/functions/v1/manage-user",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+session.access_token,"apikey":SUPABASE_KEY},body:JSON.stringify(body)});
  const data=await res.json();if(!res.ok)throw new Error(data.error||"Erreur utilisateur");return data
 }
+async function copyText(v){
+ try{await navigator.clipboard.writeText(v);return true}catch(_){
+  const ta=document.createElement("textarea");ta.value=v;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();const ok=document.execCommand("copy");ta.remove();return ok
+ }
+}
 function bindUsers(){
  const f=$("#userForm");if(!f)return;
  const reset=()=>{f.reset();$("#userId").value="";$("#saveUser").textContent="Créer l’utilisateur";$("#cancelUser").style.display="none";$("#userCode").required=true};
  $("#cancelUser").onclick=reset;
+ if($("#closeCredentials"))$("#closeCredentials").onclick=()=>{state.lastCredentials=null;render()};
+ $$("[data-copy-value]").forEach(b=>b.onclick=async()=>{
+  const c=state.lastCredentials;if(!c)return;
+  const map={email:c.email,password:c.password,link:c.link};
+  const old=b.textContent;if(await copyText(map[b.dataset.copyValue]||"")){b.textContent="Copié ✓";setTimeout(()=>b.textContent=old,1300)}
+ });
+ if($("#copyAllCredentials"))$("#copyAllCredentials").onclick=async()=>{
+  const c=state.lastCredentials;if(!c)return;
+  const msg="Compagnie des Nuisibles — Accès "+(c.role==="admin"?"administrateur":"technicien")+"\n\nLien : "+c.link+"\nE-mail : "+c.email+"\nCode d’accès : "+c.password;
+  const b=$("#copyAllCredentials"),old=b.textContent;if(await copyText(msg)){b.textContent="Tout est copié ✓";setTimeout(()=>b.textContent=old,1600)}
+ };
  $$("[data-user-edit]").forEach(b=>b.onclick=()=>{const u=state.users.find(x=>x.id===b.dataset.userEdit);$("#userId").value=u.id;$("#userName").value=u.name;$("#userRole").value=u.role;$("#userEmail").value=u.email;$("#userCode").value="";$("#userCode").required=false;$("#saveUser").textContent="Enregistrer";$("#cancelUser").style.display="inline-block"});
  $$("[data-user-toggle]").forEach(b=>b.onclick=async()=>{const u=state.users.find(x=>x.id===b.dataset.userToggle);if(u.id===state.user.id)return alert("Tu ne peux pas désactiver ton propre compte.");try{await callManageUser({action:"update",id:u.id,active:!u.active});await loadData();render()}catch(e){alert(e.message)}});
- f.onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(f));if(!d.id&&d.code.length<6)return alert("Le code doit contenir au moins 6 caractères.");try{await callManageUser(d.id?{action:"update",id:d.id,name:d.name,role:d.role,email:d.email,password:d.code||undefined}:{action:"create",name:d.name,role:d.role,email:d.email,password:d.code});await loadData();render()}catch(err){alert(err.message)}}
+ f.onsubmit=async e=>{
+  e.preventDefault();const d=Object.fromEntries(new FormData(f));
+  if(!d.id&&d.code.length<6)return alert("Le code doit contenir au moins 6 caractères.");
+  try{
+   if(d.id){
+    await callManageUser({action:"update",id:d.id,name:d.name,role:d.role,email:d.email,password:d.code||undefined})
+   }else{
+    await callManageUser({action:"create",name:d.name,role:d.role,email:d.email,password:d.code});
+    state.lastCredentials={name:d.name,role:d.role,email:d.email.trim().toLowerCase(),password:d.code,link:location.origin+location.pathname}
+   }
+   await loadData();render()
+  }catch(err){alert(err.message)}
+ }
 }
 function bindCompany(){
  const f=$("#companyForm");if(!f)return;
