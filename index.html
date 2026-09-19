@@ -71,13 +71,33 @@ textarea{min-height:112px;resize:vertical}
 canvas{width:100%;height:190px;border:1px dashed #9cc8b4;border-radius:14px;background:#fff;touch-action:none}
 .statusline{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
 .pay-chip{background:#eef8f3;color:var(--green-dark)}
+.calendar-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.view-switch{display:flex;gap:6px;flex-wrap:wrap;background:#f5f8f6;border:1px solid var(--line);padding:5px;border-radius:12px}
+.view-switch button{border:0;background:transparent;color:var(--muted);padding:8px 11px;border-radius:9px;font-weight:750}
+.view-switch button.active{background:#fff;color:var(--green-dark);box-shadow:0 2px 8px rgba(16,35,27,.06)}
+.calendar-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px}
+.cal-head{font-size:.72rem;font-weight:800;color:var(--muted);padding:4px 5px;text-align:center}
+.cal-day{min-height:92px;border:1px solid var(--line);border-radius:13px;background:#fff;padding:8px;cursor:pointer;display:flex;flex-direction:column;gap:5px}
+.cal-day:hover{border-color:#9fd1ba}.cal-day.today{border-color:var(--green);box-shadow:0 0 0 2px var(--green-soft) inset}.cal-day.out{opacity:.38}
+.cal-num{font-weight:800;font-size:.84rem}.cal-events{display:flex;flex-direction:column;gap:4px}
+.cal-event{font-size:.68rem;padding:4px 5px;border-radius:7px;background:var(--green-soft);color:var(--green-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-free{font-size:.67rem;color:#2f7a57;margin-top:auto}
+.week-grid{display:grid;grid-template-columns:repeat(7,minmax(130px,1fr));gap:8px;overflow:auto;padding-bottom:4px}
+.week-day{border:1px solid var(--line);border-radius:14px;padding:10px;background:#fff;min-height:190px}
+.week-day.today{border-color:var(--green)}.week-title{font-size:.78rem;font-weight:800;margin-bottom:8px}
+.year-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.mini-month{border:1px solid var(--line);border-radius:14px;padding:10px;background:#fff}.mini-month h3{font-size:.88rem;margin:0 0 8px}
+.mini-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}.mini-cell{font-size:.62rem;text-align:center;padding:4px 2px;border-radius:6px;cursor:pointer}.mini-cell.busy{background:var(--green-soft);color:var(--green-dark);font-weight:800}.mini-cell.out{opacity:.15}
+.agenda-day-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.availability{font-size:.75rem;font-weight:750;color:var(--green-dark);background:var(--green-soft);padding:5px 8px;border-radius:999px}
 @media(max-width:800px){
-  .wrap{padding:12px}.grid2,.report-grid,.hero{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}
+  .wrap{padding:12px}.grid2,.report-grid,.hero{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}.year-grid{grid-template-columns:1fr 1fr}.cal-day{min-height:76px;padding:6px}.cal-event{font-size:.62rem}
   .appt{grid-template-columns:62px minmax(0,1fr)}.appt .actions{grid-column:1/-1}
   .nav{width:100%;overflow:auto;flex-wrap:nowrap}.nav button{white-space:nowrap}
   .top{align-items:flex-start}.previews{grid-template-columns:repeat(2,1fr)}
 }
-@media(max-width:430px){.metrics{grid-template-columns:1fr 1fr}.metric strong{font-size:1.35rem}.wrap{padding:9px}.card{padding:14px;border-radius:16px}}
+@media(max-width:430px){.metrics{grid-template-columns:1fr 1fr}.metric strong{font-size:1.35rem}.wrap{padding:9px}.card{padding:14px;border-radius:16px}.year-grid{grid-template-columns:1fr}.cal-grid{gap:3px}.cal-day{min-height:64px;padding:4px}.cal-event{display:none}.cal-head{font-size:.62rem}}
 </style>
 </head>
 <body>
@@ -94,6 +114,8 @@ let state={
  user:null,
  tab:"planning",
  date:today(),
+ calendarView:"day",
+ techFilter:"all",
  users:JSON.parse(localStorage.getItem("cdn_users")||"null")||DEFAULT_USERS,
  appts:JSON.parse(localStorage.getItem("cdn_appts")||"null")||[
   {id:crypto.randomUUID(),date:today(),start:"09:00",end:"10:00",client:"Client Démo",address:"Levallois-Perret",type:"Dératisation",technician:"Technicien Démo",techEmail:"technicien@demo.local",notes:"Exemple uniquement.",status:"todo",report:"",signature:"",passage:1,parentId:""}
@@ -117,9 +139,59 @@ function admin(){
  $("#app").innerHTML=shell("Espace administrateur",body);bindAdmin()
 }
 function planning(list){
- const done=list.filter(a=>a.status==="done").length, follow=list.filter(a=>(a.passage||1)===2).length;
- return '<div class="hero"><div class="hero-main"><div><div class="muted">Vue du '+esc(state.date)+'</div><h2>Planning des interventions</h2></div><div class="muted">'+list.length+' rendez-vous planifié(s) aujourd’hui</div></div><div class="metrics"><div class="metric"><span class="muted">Terminées</span><strong>'+done+'</strong></div><div class="metric"><span class="muted">2e passages</span><strong>'+follow+'</strong></div></div></div>'+
- '<div class="card"><div class="section-title"><div><h2>Journée</h2><div class="muted">Toutes les interventions par ordre horaire</div></div><input id="day" type="date" value="'+state.date+'" style="width:auto"></div>'+ (list.length?list.map(a=>card(a,true)).join(""):'<div class="muted">Aucune intervention ce jour.</div>') +'</div>'
+ const all=calendarSource(true);
+ const visible=filterCalendarTech(all);
+ const dayList=visible.filter(a=>a.date===state.date).sort((a,b)=>a.start.localeCompare(b.start));
+ const done=dayList.filter(a=>a.status==="done").length, follow=dayList.filter(a=>(a.passage||1)===2).length;
+ const techs=state.users.filter(u=>u.role==="tech"&&u.active!==false);
+ return '<div class="hero"><div class="hero-main"><div><div class="muted">Agenda équipe</div><h2>Planning & disponibilités</h2></div><div class="muted">'+visible.length+' intervention(s) dans la période affichée</div></div><div class="metrics"><div class="metric"><span class="muted">Aujourd’hui</span><strong>'+dayList.length+'</strong></div><div class="metric"><span class="muted">Terminées</span><strong>'+done+'</strong></div></div></div>'+
+ '<div class="card">'+calendarControls(techs,true)+calendarBody(visible,true)+'</div>'
+}
+function calendarSource(adminMode){
+ return adminMode?state.appts:state.appts.filter(a=>a.techEmail===state.user.email)
+}
+function filterCalendarTech(list){
+ if(state.user?.role!=="admin"||state.techFilter==="all")return list;
+ return list.filter(a=>a.techEmail===state.techFilter)
+}
+function calendarControls(techs,showFilter){
+ const filter=showFilter?'<select id="techFilter" style="width:auto;min-width:190px"><option value="all">Tous les techniciens</option>'+techs.map(u=>'<option value="'+esc(u.email)+'" '+(state.techFilter===u.email?"selected":"")+'>'+esc(u.name)+'</option>').join("")+'</select>':'';
+ return '<div class="calendar-toolbar"><div><div class="view-switch">'+["day","week","month","year"].map(v=>'<button type="button" data-cal-view="'+v+'" class="'+(state.calendarView===v?"active":"")+'">'+({day:"Jour",week:"Semaine",month:"Mois",year:"Année"}[v])+'</button>').join("")+'</div></div><div class="calendar-nav"><button class="btn btn-soft" type="button" id="calPrev">‹</button><button class="btn btn-soft" type="button" id="calToday">Aujourd’hui</button><button class="btn btn-soft" type="button" id="calNext">›</button><input id="calDate" type="date" value="'+state.date+'" style="width:auto">'+filter+'</div></div>'
+}
+function calendarBody(list,adminMode){
+ if(state.calendarView==="day")return dayCalendar(list,adminMode);
+ if(state.calendarView==="week")return weekCalendar(list,adminMode);
+ if(state.calendarView==="month")return monthCalendar(list,adminMode);
+ return yearCalendar(list)
+}
+function dateObj(s){const [y,m,d]=s.split("-").map(Number);return new Date(Date.UTC(y,m-1,d))}
+function dateStr(d){return d.toISOString().slice(0,10)}
+function addDays(s,n){const d=dateObj(s);d.setUTCDate(d.getUTCDate()+n);return dateStr(d)}
+function startOfWeek(s){const d=dateObj(s),day=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-day);return dateStr(d)}
+function monthInfo(s){const d=dateObj(s);return {y:d.getUTCFullYear(),m:d.getUTCMonth()}}
+function fmtDay(s){return new Intl.DateTimeFormat("fr-FR",{weekday:"short",day:"numeric",month:"short",timeZone:"UTC"}).format(dateObj(s))}
+function fmtMonth(y,m){return new Intl.DateTimeFormat("fr-FR",{month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(Date.UTC(y,m,1)))}
+function dayCalendar(list,adminMode){
+ const day=list.filter(a=>a.date===state.date).sort((a,b)=>a.start.localeCompare(b.start));
+ return '<div class="agenda-day-head"><div><h2 style="margin:0">'+fmtDay(state.date)+'</h2><div class="muted">'+day.length+' intervention(s)</div></div><span class="availability">'+(day.length===0?"Journée disponible":day.length<4?"Encore disponible":"Journée chargée")+'</span></div>'+(day.length?day.map(a=>card(a,adminMode)).join(""):'<div class="notice">Aucune intervention planifiée : créneau disponible.</div>')
+}
+function weekCalendar(list,adminMode){
+ const start=startOfWeek(state.date);
+ let html='<div class="week-grid">';
+ for(let i=0;i<7;i++){const d=addDays(start,i),items=list.filter(a=>a.date===d).sort((a,b)=>a.start.localeCompare(b.start));html+='<div class="week-day '+(d===today()?"today":"")+'" data-cal-date="'+d+'"><div class="week-title">'+fmtDay(d)+'</div>'+(items.length?items.map(a=>'<div class="cal-event" title="'+esc(a.client)+'">'+esc(a.start)+' · '+esc(a.client)+(adminMode?' · '+esc(a.technician):'')+'</div>').join(""):'<div class="cal-free">Disponible</div>')+'</div>'}
+ return html+'</div>'
+}
+function monthCalendar(list,adminMode){
+ const {y,m}=monthInfo(state.date), first=new Date(Date.UTC(y,m,1)), offset=(first.getUTCDay()+6)%7, start=new Date(Date.UTC(y,m,1-offset));
+ const heads=["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].map(x=>'<div class="cal-head">'+x+'</div>').join("");
+ let cells="";
+ for(let i=0;i<42;i++){const d=new Date(start);d.setUTCDate(start.getUTCDate()+i);const ds=dateStr(d),inMonth=d.getUTCMonth()===m,items=list.filter(a=>a.date===ds).sort((a,b)=>a.start.localeCompare(b.start));cells+='<div class="cal-day '+(!inMonth?"out ":"")+(ds===today()?"today":"")+'" data-cal-date="'+ds+'"><div class="cal-num">'+d.getUTCDate()+'</div><div class="cal-events">'+items.slice(0,3).map(a=>'<div class="cal-event">'+esc(a.start)+' '+esc(a.client)+(adminMode?' · '+esc(a.technician):'')+'</div>').join("")+'</div>'+(items.length===0&&inMonth?'<div class="cal-free">Disponible</div>':'')+(items.length>3?'<div class="muted">+'+(items.length-3)+'</div>':'')+'</div>'}
+ return '<div class="section-title"><div><h2>'+fmtMonth(y,m)+'</h2><div class="muted">Clique sur un jour pour ouvrir son planning</div></div></div><div class="cal-grid">'+heads+cells+'</div>'
+}
+function yearCalendar(list){
+ const {y}=monthInfo(state.date);let html='<div class="section-title"><div><h2>'+y+'</h2><div class="muted">Vue annuelle des journées occupées</div></div></div><div class="year-grid">';
+ for(let m=0;m<12;m++){const first=new Date(Date.UTC(y,m,1)),offset=(first.getUTCDay()+6)%7,start=new Date(Date.UTC(y,m,1-offset));let cells="";for(let i=0;i<42;i++){const d=new Date(start);d.setUTCDate(start.getUTCDate()+i);const ds=dateStr(d),inMonth=d.getUTCMonth()===m,busy=list.some(a=>a.date===ds);cells+='<div class="mini-cell '+(!inMonth?"out ":"")+(busy&&inMonth?"busy":"")+'" data-cal-date="'+ds+'">'+d.getUTCDate()+'</div>'}html+='<div class="mini-month"><h3>'+fmtMonth(y,m).replace(" "+y,"")+'</h3><div class="mini-grid">'+cells+'</div></div>'}
+ return html+'</div></div>'
 }
 function card(a,adminMode){const passage=a.passage||1;return '<div class="appt"><div class="time">'+esc(a.start)+'<div class="muted">'+esc(a.end)+'</div></div><div><strong>'+esc(a.client)+'</strong><div class="muted" style="margin-top:3px">'+esc(a.address)+'</div><div class="statusline"><span class="badge green">'+esc(a.type)+'</span><span class="badge">Passage '+passage+'</span><span class="badge">'+esc(a.technician)+'</span><span class="badge '+(a.status==="done"?"done":"todo")+'">'+(a.status==="done"?"Terminé":"À faire")+'</span>'+(a.payment?'<span class="badge pay-chip">'+esc(a.payment)+'</span>':'')+'</div></div><div class="actions">'+(adminMode?'<button class="btn btn-soft" data-edit="'+a.id+'">Modifier</button><button class="btn btn-danger" data-del="'+a.id+'">Supprimer</button>':'<button class="btn btn-primary" data-report="'+a.id+'">'+(a.status==="done"?"Voir le rapport":"Faire le rapport")+'</button>')+'</div></div>'}
 function form(id=""){
@@ -137,11 +209,28 @@ function usersView(){
 function bindAdmin(){
  $("#logout").onclick=()=>{state.user=null;render()};
  $$("[data-tab]").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;render()});
- if($("#day"))$("#day").onchange=e=>{state.date=e.target.value;render()};
+ bindCalendar();
  $$("[data-del]").forEach(b=>b.onclick=()=>{if(confirm("Supprimer cette intervention ?")){state.appts=state.appts.filter(a=>a.id!==b.dataset.del);save();render()}});
  $$("[data-edit]").forEach(b=>b.onclick=()=>{$("#app").innerHTML=shell("Espace administrateur",form(b.dataset.edit));$("#logout").onclick=()=>{state.user=null;render()};bindForm()});
  bindForm();
  bindUsers()
+}
+function bindCalendar(){
+ if($("#calDate"))$("#calDate").onchange=e=>{state.date=e.target.value;render()};
+ if($("#techFilter"))$("#techFilter").onchange=e=>{state.techFilter=e.target.value;render()};
+ $("[data-cal-view]").forEach(b=>b.onclick=()=>{state.calendarView=b.dataset.calView;render()});
+ $("[data-cal-date]").forEach(el=>el.onclick=e=>{if(e.target.closest("[data-report],[data-edit],[data-del]"))return;state.date=el.dataset.calDate;state.calendarView="day";render()});
+ if($("#calToday"))$("#calToday").onclick=()=>{state.date=today();render()};
+ if($("#calPrev"))$("#calPrev").onclick=()=>{state.date=shiftPeriod(state.date,-1,state.calendarView);render()};
+ if($("#calNext"))$("#calNext").onclick=()=>{state.date=shiftPeriod(state.date,1,state.calendarView);render()};
+}
+function shiftPeriod(s,dir,view){
+ const d=dateObj(s);
+ if(view==="day")d.setUTCDate(d.getUTCDate()+dir);
+ else if(view==="week")d.setUTCDate(d.getUTCDate()+7*dir);
+ else if(view==="month")d.setUTCMonth(d.getUTCMonth()+dir);
+ else d.setUTCFullYear(d.getUTCFullYear()+dir);
+ return dateStr(d)
 }
 function bindForm(){
  const f=$("#apptForm");if(!f)return;
@@ -158,7 +247,13 @@ function bindUsers(){
  $("[data-user-toggle]").forEach(b=>b.onclick=()=>{const u=state.users.find(x=>x.id===b.dataset.userToggle);if(!u)return;if(u.id===state.user.id&&u.active!==false)return alert("Tu ne peux pas désactiver ton propre compte pendant que tu es connecté.");u.active=u.active===false?true:false;save();render()});
  form.onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(form));d.email=d.email.trim().toLowerCase();d.code=d.code.trim();if(d.code.length<4)return alert("Le code doit contenir au moins 4 caractères.");const duplicate=state.users.find(u=>u.email===d.email&&u.id!==d.id);if(duplicate)return alert("Un utilisateur utilise déjà cette adresse e-mail.");if(d.id){state.users=state.users.map(u=>u.id===d.id?{...u,name:d.name.trim(),role:d.role,email:d.email,code:d.code}:u)}else{state.users.push({id:crypto.randomUUID(),name:d.name.trim(),role:d.role,email:d.email,code:d.code,active:true})}save();alert(d.id?"Utilisateur modifié.":"Utilisateur créé.");render()}
 }
-function tech(){const list=state.appts.filter(a=>a.techEmail===state.user.email).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));$("#app").innerHTML=shell("Espace technicien",'<div class="card"><h2>Mes interventions</h2>'+(list.length?list.map(a=>card(a,false)).join(""):'<div class="muted">Aucune intervention assignée.</div>')+'</div>');$("#logout").onclick=()=>{state.user=null;render()};$$("[data-report]").forEach(b=>b.onclick=()=>report(b.dataset.report))}
+function tech(){
+ const list=calendarSource(false);
+ $("#app").innerHTML=shell("Espace technicien",'<div class="card">'+calendarControls([],false)+calendarBody(list,false)+'</div>');
+ $("#logout").onclick=()=>{state.user=null;render()};
+ bindCalendar();
+ $("[data-report]").forEach(b=>b.onclick=()=>report(b.dataset.report))
+}
 function report(id){
  const a=state.appts.find(x=>x.id===id), passage=a.passage||1;
  const before=a.photosBefore||[], after=a.photosAfter||[];
