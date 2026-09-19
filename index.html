@@ -340,6 +340,140 @@ canvas{border-radius:16px;border-color:#a7cbb9;box-shadow:inset 0 0 0 1px rgba(1
   .login .card{padding:22px}
 }
 
+
+/* ===== V4 CRM REBUILD ===== */
+.v4-shell{max-width:1440px;margin:0 auto;padding:18px 20px 40px}
+.v4-topbar{
+  height:72px;display:flex;align-items:center;justify-content:space-between;gap:16px;
+  margin-bottom:16px;padding:0 16px;border:1px solid #dfe8e3;border-radius:20px;
+  background:rgba(255,255,255,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  box-shadow:0 10px 30px rgba(18,49,37,.06)
+}
+.v4-brand{display:flex;align-items:center;gap:12px;min-width:0}
+.v4-brand-copy{min-width:0}
+.v4-brand-title{font-size:1.04rem;font-weight:900;letter-spacing:-.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v4-brand-sub{font-size:.76rem;color:#718078;margin-top:2px}
+.v4-userbox{display:flex;align-items:center;gap:10px}
+.v4-role{
+  padding:7px 10px;border-radius:999px;background:#edf8f3;border:1px solid #d7ebe1;
+  color:#0b704c;font-size:.72rem;font-weight:850
+}
+.workspace{
+  display:grid;grid-template-columns:230px minmax(0,1fr);gap:16px;align-items:start
+}
+.sidebar{
+  position:sticky;top:16px;padding:12px;border:1px solid #dfe8e3;border-radius:22px;
+  background:rgba(255,255,255,.96);box-shadow:0 12px 34px rgba(18,49,37,.06)
+}
+.sidebar-head{
+  padding:10px 10px 14px;margin-bottom:7px;border-bottom:1px solid #edf2ef
+}
+.sidebar-title{font-size:.7rem;color:#8a9891;font-weight:850;text-transform:uppercase;letter-spacing:.09em}
+.nav{
+  position:static!important;display:flex!important;flex-direction:column!important;gap:5px!important;
+  width:100%!important;max-width:none!important;margin:0!important;padding:0!important;
+  border:0!important;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important
+}
+.nav button{
+  width:100%;display:flex;align-items:center;gap:10px;justify-content:flex-start;
+  min-height:46px;padding:0 12px!important;border-radius:12px!important;text-align:left
+}
+.nav-ico{
+  width:30px;height:30px;display:grid;place-items:center;border-radius:9px;
+  background:#f3f6f4;color:#52645b;font-size:.9rem;font-weight:900;flex:0 0 auto
+}
+.nav .active .nav-ico{background:rgba(255,255,255,.18);color:#fff}
+.workspace-main{min-width:0}
+.page-heading{
+  display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin:2px 2px 14px
+}
+.page-heading h1{margin:0;font-size:1.55rem;letter-spacing:-.04em}
+.page-heading p{margin:5px 0 0;color:#77847e;font-size:.84rem}
+.crm-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin-bottom:14px}
+.crm-kpi{
+  position:relative;overflow:hidden;padding:17px;border:1px solid #dfe8e3;border-radius:19px;
+  background:#fff;box-shadow:0 8px 24px rgba(18,49,37,.045)
+}
+.crm-kpi:after{content:"";position:absolute;right:-22px;top:-28px;width:78px;height:78px;border-radius:50%;background:#f0f8f4}
+.crm-kpi .kpi-label{position:relative;z-index:1;color:#738079;font-size:.72rem;font-weight:800}
+.crm-kpi strong{position:relative;z-index:1;display:block;margin-top:8px;font-size:1.65rem;letter-spacing:-.045em}
+.crm-kpi .kpi-foot{position:relative;z-index:1;margin-top:5px;color:#8a9690;font-size:.7rem}
+.hero{display:none!important}
+.calendar-card{padding:18px}
+.agenda-day-head{padding:4px 2px 10px}
+.appt{
+  grid-template-columns:76px minmax(0,1fr) auto!important;
+  padding:16px 16px 16px 19px!important;border-radius:18px!important;
+  background:linear-gradient(180deg,#fff,#fdfefd)!important
+}
+.appt-main{min-width:0}
+.appt-name{font-size:.98rem;font-weight:900;letter-spacing:-.02em}
+.appt-address{margin-top:5px;color:#7a8781;font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.appt-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.amount-badge{background:#eff7ff!important;border-color:#dbe8f5!important;color:#25577a!important}
+.time{padding-top:2px}
+.time .time-start{font-size:1.05rem;font-weight:900}
+.time .time-end{font-size:.73rem;margin-top:3px}
+.actions .btn{min-height:40px;padding:9px 12px;font-size:.77rem}
+.tech-dashboard{display:grid;gap:14px}
+.tech-welcome{
+  position:relative;overflow:hidden;padding:22px;border-radius:24px;
+  background:linear-gradient(135deg,#084d35 0,#0c7450 58%,#18a877 100%);
+  color:#fff;box-shadow:0 16px 38px rgba(9,94,64,.18)
+}
+.tech-welcome:after{content:"";position:absolute;right:-45px;top:-60px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.08)}
+.tech-welcome h1{position:relative;z-index:1;margin:4px 0 7px;font-size:1.55rem;letter-spacing:-.04em}
+.tech-welcome p{position:relative;z-index:1;margin:0;color:#d8f3e8;font-size:.84rem}
+.tech-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px;position:relative;z-index:1}
+.tech-stat{padding:11px 12px;border-radius:14px;background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.14)}
+.tech-stat span{display:block;font-size:.68rem;color:#daf3e8}
+.tech-stat strong{display:block;margin-top:4px;font-size:1.2rem}
+.login .card:before{
+  content:"Espace professionnel";display:inline-block;margin-bottom:14px;padding:6px 9px;border-radius:999px;
+  background:#ecf7f2;color:#0b714d;font-size:.68rem;font-weight:850;letter-spacing:.05em;text-transform:uppercase
+}
+@media(max-width:1050px){
+  .workspace{grid-template-columns:190px minmax(0,1fr)}
+  .crm-kpis{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:800px){
+  body{padding-bottom:78px}
+  .v4-shell{padding:9px 9px 24px}
+  .v4-topbar{height:auto;min-height:62px;margin-bottom:10px;padding:9px 10px;border-radius:16px}
+  .v4-role{display:none}
+  .workspace{display:block}
+  .sidebar{
+    position:fixed;left:8px;right:8px;bottom:8px;top:auto;z-index:100;
+    padding:5px;border-radius:18px;box-shadow:0 12px 38px rgba(17,51,38,.16)
+  }
+  .sidebar-head{display:none}
+  .nav{flex-direction:row!important;overflow-x:auto!important;gap:3px!important}
+  .nav button{min-width:72px;flex:1;justify-content:center;flex-direction:column;gap:3px;padding:6px 8px!important;min-height:56px;font-size:.66rem}
+  .nav-ico{width:24px;height:24px;background:transparent;font-size:.85rem}
+  .nav .active{box-shadow:none!important}
+  .nav .active .nav-ico{background:rgba(255,255,255,.16)}
+  .page-heading{margin:3px 2px 10px}
+  .page-heading h1{font-size:1.28rem}
+  .page-heading p{font-size:.76rem}
+  .crm-kpis{grid-template-columns:repeat(2,1fr);gap:8px}
+  .crm-kpi{padding:13px;border-radius:16px}
+  .crm-kpi strong{font-size:1.35rem}
+  .calendar-card{padding:13px}
+  .appt{grid-template-columns:58px minmax(0,1fr)!important;padding:13px 12px 13px 16px!important}
+  .appt .actions{grid-column:1/-1}
+  .appt-address{white-space:normal}
+  .tech-welcome{padding:18px;border-radius:19px}
+  .tech-stats{gap:7px}
+  .tech-stat{padding:9px}
+}
+@media(max-width:430px){
+  .crm-kpis{grid-template-columns:1fr 1fr}
+  .v4-brand-title{font-size:.92rem}
+  .v4-brand-sub{font-size:.7rem}
+  .tech-welcome h1{font-size:1.3rem}
+  .tech-stats{grid-template-columns:1fr 1fr 1fr}
+}
+
 </style>
 </head>
 <body>
@@ -418,31 +552,60 @@ const save=()=>{localStorage.setItem("cdn_appts",JSON.stringify(state.appts));lo
    save();
  }
 })();
-function shell(sub,body){return '<div class="wrap"><div class="top"><div class="brandline"><div class="logo">CN</div><div><div class="brand">Compagnie des Nuisibles</div><div class="muted">'+esc(sub)+'</div></div></div><button id="logout" class="btn btn-soft">Déconnexion</button></div>'+body+'</div>'}
+function shell(sub,body){
+ const role=state.user?.role==="admin"?"Administrateur":"Technicien";
+ return '<div class="v4-shell"><div class="v4-topbar"><div class="v4-brand"><div class="logo">CN</div><div class="v4-brand-copy"><div class="v4-brand-title">Compagnie des Nuisibles</div><div class="v4-brand-sub">'+esc(sub)+'</div></div></div><div class="v4-userbox"><span class="v4-role">'+role+'</span><button id="logout" class="btn btn-soft">Déconnexion</button></div></div>'+body+'</div>'
+}
 function render(){if(!state.user)return login();state.user.role==="admin"?admin():tech()}
 function login(){
  $("#app").innerHTML='<div class="login"><div class="card"><div class="login-head"><div class="logo">CN</div><div><div class="brand" style="font-size:1.15rem">Compagnie des Nuisibles</div><div class="muted">Espace interventions</div></div></div><div class="notice">Version de démonstration sécurisée sans données clients réelles.</div><form id="login"><div class="field"><label>E-mail professionnel</label><input name="email" type="email" required placeholder="votre@email.fr"></div><div class="field"><label>Code d’accès</label><input name="code" inputmode="numeric" required placeholder="••••"></div><button class="btn btn-primary" style="width:100%">Se connecter</button></form><div class="muted" style="margin-top:14px">Admin démo : admin@demo.local / 2468 · Technicien : technicien@demo.local / 1234</div></div></div>';
  $("#login").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));const u=state.users.find(x=>x.active!==false&&x.email===d.email.trim().toLowerCase()&&x.code===d.code.trim());if(!u)return alert("E-mail, code incorrect ou compte désactivé");state.user=u;render()}
 }
-function nav(){return '<div class="nav"><button data-tab="planning" class="'+(state.tab==="planning"?"active":"")+'">Planning</button><button data-tab="new" class="'+(state.tab==="new"?"active":"")+'">Nouvelle intervention</button><button data-tab="history" class="'+(state.tab==="history"?"active":"")+'">Historique</button><button data-tab="users" class="'+(state.tab==="users"?"active":"")+'">Utilisateurs</button><button data-tab="company" class="'+(state.tab==="company"?"active":"")+'">Société</button></div>'}
+function nav(){
+ const items=[
+  ["planning","▦","Planning"],
+  ["new","+","Nouvelle intervention"],
+  ["history","↺","Historique"],
+  ["users","◉","Utilisateurs"],
+  ["company","⚙","Société"]
+ ];
+ return '<div class="nav">'+items.map(([id,ico,label])=>'<button data-tab="'+id+'" class="'+(state.tab===id?"active":"")+'"><span class="nav-ico">'+ico+'</span><span>'+label+'</span></button>').join("")+'</div>'
+}
 function admin(){
  const list=state.appts.filter(a=>a.date===state.date).sort((a,b)=>a.start.localeCompare(b.start));
- let body=nav();
- if(state.tab==="planning") body+=planning(list);
- else if(state.tab==="new") body+=form();
- else if(state.tab==="history") body+=history();
- else if(state.tab==="users") body+=usersView();
- else body+=companyView();
- $("#app").innerHTML=shell("Espace administrateur",body);bindAdmin()
+ let page="";
+ if(state.tab==="planning") page=planning(list);
+ else if(state.tab==="new") page=form();
+ else if(state.tab==="history") page=history();
+ else if(state.tab==="users") page=usersView();
+ else page=companyView();
+ const titles={
+  planning:["Tableau de bord","Pilotage des interventions et disponibilités de l’équipe."],
+  new:["Nouvelle intervention","Crée une fiche client et assigne un technicien."],
+  history:["Historique","Retrouve les interventions, rapports et PDF."],
+  users:["Équipe","Gère les accès administrateurs et techniciens."],
+  company:["Société","Informations utilisées sur les documents professionnels."]
+ };
+ const t=titles[state.tab]||titles.planning;
+ const body='<div class="workspace"><aside class="sidebar"><div class="sidebar-head"><div class="sidebar-title">Navigation</div></div>'+nav()+'</aside><main class="workspace-main"><div class="page-heading"><div><h1>'+t[0]+'</h1><p>'+t[1]+'</p></div></div>'+page+'</main></div>';
+ $("#app").innerHTML=shell("Centre de gestion",body);bindAdmin()
 }
 function planning(list){
  const all=calendarSource(true);
  const visible=filterCalendarTech(all);
  const dayList=visible.filter(a=>a.date===state.date).sort((a,b)=>a.start.localeCompare(b.start));
- const done=dayList.filter(a=>a.status==="done").length, follow=dayList.filter(a=>(a.passage||1)===2).length;
+ const done=dayList.filter(a=>a.status==="done").length;
+ const todo=dayList.filter(a=>a.status!=="done").length;
  const techs=state.users.filter(u=>u.role==="tech"&&u.active!==false);
- return '<div class="hero"><div class="hero-main"><div><div class="muted">Agenda équipe</div><h2>Planning & disponibilités</h2></div><div class="muted">'+visible.length+' intervention(s) dans la période affichée</div></div><div class="metrics"><div class="metric"><span class="muted">Aujourd’hui</span><strong>'+dayList.length+'</strong></div><div class="metric"><span class="muted">Terminées</span><strong>'+done+'</strong></div></div></div>'+
- '<div class="card">'+calendarControls(techs,true)+calendarBody(visible,true)+'</div>'
+ const followups=state.appts.filter(a=>(a.passage||1)===2&&a.status!=="done").length;
+ const revenue=dayList.filter(a=>a.status==="done"&&a.amount).reduce((s,a)=>s+(Number(a.amount)||0),0);
+ return '<div class="crm-kpis">'+
+  '<div class="crm-kpi"><div class="kpi-label">INTERVENTIONS DU JOUR</div><strong>'+dayList.length+'</strong><div class="kpi-foot">'+todo+' restant(es)</div></div>'+
+  '<div class="crm-kpi"><div class="kpi-label">TERMINÉES</div><strong>'+done+'</strong><div class="kpi-foot">Rapports validés</div></div>'+
+  '<div class="crm-kpi"><div class="kpi-label">2E PASSAGES</div><strong>'+followups+'</strong><div class="kpi-foot">À planifier / réaliser</div></div>'+
+  '<div class="crm-kpi"><div class="kpi-label">CA DU JOUR</div><strong>'+revenue.toLocaleString("fr-FR")+' €</strong><div class="kpi-foot">Montants saisis par les techniciens</div></div>'+
+ '</div>'+
+ '<div class="card calendar-card">'+calendarControls(techs,true)+calendarBody(visible,true)+'</div>'
 }
 function calendarSource(adminMode){
  return adminMode?state.appts:state.appts.filter(a=>a.techEmail===state.user.email)
@@ -494,7 +657,8 @@ function card(a,adminMode){
  const passage=a.passage||1;
  const fullClient=[a.clientFirstName,a.clientLastName].filter(Boolean).join(" ")||a.client||"Client";
  const pdfBtn=a.status==="done"?'<button class="btn btn-soft" data-pdf="'+a.id+'">PDF</button>':"";
- return '<div class="appt"><div class="time">'+esc(a.start)+'<div class="muted">'+esc(a.end)+'</div></div><div><strong>'+esc(fullClient)+'</strong><div class="muted" style="margin-top:3px">'+esc(a.address)+'</div><div class="statusline"><span class="badge green">'+esc(a.type)+'</span><span class="badge">Passage '+passage+'</span><span class="badge">'+esc(a.technician)+'</span><span class="badge '+(a.status==="done"?"done":"todo")+'">'+(a.status==="done"?"Terminé":"À faire")+'</span>'+(a.payment?'<span class="badge pay-chip">'+esc(a.payment)+'</span>':'')+'</div></div><div class="actions">'+pdfBtn+(adminMode?'<button class="btn btn-soft" data-edit="'+a.id+'">Modifier</button><button class="btn btn-danger" data-del="'+a.id+'">Supprimer</button>':'<button class="btn btn-primary" data-report="'+a.id+'">'+(a.status==="done"?"Voir le rapport":"Faire le rapport")+'</button>')+'</div></div>'
+ const amount=a.amount?'<span class="badge amount-badge">'+Number(a.amount).toLocaleString("fr-FR")+' € TTC</span>':"";
+ return '<div class="appt"><div class="time"><div class="time-start">'+esc(a.start)+'</div><div class="muted time-end">'+esc(a.end)+'</div></div><div class="appt-main"><div class="appt-name">'+esc(fullClient)+'</div><div class="appt-address">'+esc(a.address)+'</div><div class="appt-meta"><span class="badge green">'+esc(a.type)+'</span><span class="badge">Passage '+passage+'</span><span class="badge">'+esc(a.technician)+'</span><span class="badge '+(a.status==="done"?"done":"todo")+'">'+(a.status==="done"?"Terminé":"À faire")+'</span>'+amount+(a.payment?'<span class="badge pay-chip">'+esc(a.payment)+'</span>':'')+'</div></div><div class="actions">'+pdfBtn+(adminMode?'<button class="btn btn-soft" data-edit="'+a.id+'">Modifier</button><button class="btn btn-danger" data-del="'+a.id+'">Supprimer</button>':'<button class="btn btn-primary" data-report="'+a.id+'">'+(a.status==="done"?"Voir le rapport":"Faire le rapport")+'</button>')+'</div></div>'
 }
 function form(id=""){
  const a=id?state.appts.find(x=>x.id===id):null;
@@ -576,7 +740,12 @@ function bindCompany(){
 }
 function tech(){
  const list=calendarSource(false);
- $("#app").innerHTML=shell("Espace technicien",'<div class="card">'+calendarControls([],false)+calendarBody(list,false)+'</div>');
+ const todayItems=list.filter(a=>a.date===state.date);
+ const done=todayItems.filter(a=>a.status==="done").length;
+ const remaining=todayItems.filter(a=>a.status!=="done").length;
+ const followups=list.filter(a=>(a.passage||1)===2&&a.status!=="done").length;
+ const body='<div class="tech-dashboard"><section class="tech-welcome"><div class="muted" style="color:#d8f3e8">ESPACE TECHNICIEN</div><h1>Bonjour '+esc(state.user.name||"Technicien")+'</h1><p>Ton planning, tes interventions et tes rapports dans un seul espace.</p><div class="tech-stats"><div class="tech-stat"><span>Aujourd’hui</span><strong>'+todayItems.length+'</strong></div><div class="tech-stat"><span>À faire</span><strong>'+remaining+'</strong></div><div class="tech-stat"><span>2e passages</span><strong>'+followups+'</strong></div></div></section><div class="card calendar-card">'+calendarControls([],false)+calendarBody(list,false)+'</div></div>';
+ $("#app").innerHTML=shell("Planning technicien",body);
  $("#logout").onclick=()=>{state.user=null;render()};
  bindCalendar();
  $$("[data-report]").forEach(b=>b.onclick=()=>report(b.dataset.report));
