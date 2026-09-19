@@ -474,6 +474,14 @@ canvas{border-radius:16px;border-color:#a7cbb9;box-shadow:inset 0 0 0 1px rgba(1
   .tech-stats{grid-template-columns:1fr 1fr 1fr}
 }
 
+
+.pdf-modal{position:fixed;inset:0;z-index:9999;background:rgba(8,24,18,.72);display:flex;align-items:center;justify-content:center;padding:18px}
+.pdf-modal-card{width:min(1100px,100%);height:min(92vh,900px);background:#fff;border-radius:20px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 30px 90px rgba(0,0,0,.3)}
+.pdf-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.pdf-modal-title{font-weight:900}
+.pdf-modal-actions{display:flex;gap:8px;flex-wrap:wrap}
+.pdf-frame{border:0;width:100%;height:100%;background:#f4f6f5}
+@media(max-width:800px){.pdf-modal{padding:0}.pdf-modal-card{height:100vh;border-radius:0}.pdf-modal-head{padding-top:calc(10px + env(safe-area-inset-top))}}
 </style>
 </head>
 <body>
@@ -768,14 +776,14 @@ async function report(id){
 
    if(passage===1&&$("#needSecond")?.checked){
     const d=$("#secondDate").value,t=$("#secondTime").value;
-    const payload={intervention_date:d,start_time:t,end_time:addHour(t),client_first_name:a.clientFirstName,client_last_name:a.clientLastName||a.client,client_phone:a.clientPhone||null,client_email:a.clientEmail||null,address:a.address,service_type:a.type,technician_id:a.technicianId,notes:"Deuxième passage programmé depuis le rapport du passage 1.",status:"todo",passage:2,parent_id:a.id};
-    const {error:e2}=await sb.from("interventions").insert(payload);if(e2)throw e2
+    const {error:e2}=await sb.rpc("schedule_second_passage",{p_parent_id:a.id,p_date:d,p_start:t});
+    if(e2)throw e2
    }
 
    await loadData();
    state.reportSaving=false;
    alert(mediaErrors.length?"Rapport validé. La fiche est terminée, mais certains médias n’ont pas pu être enregistrés : "+mediaErrors.join(", "):"Rapport validé. La fiche client est terminée.");
-   render()
+   state.date=a.date;render()
   }catch(err){
    state.reportSaving=false;
    console.error(err);
@@ -801,16 +809,37 @@ function bindPhotoInput(inputSel,previewSel,setter){
 function compressImage(file,maxSize=900,quality=.68){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w>maxSize||h>maxSize){const k=Math.min(maxSize/w,maxSize/h);w=Math.round(w*k);h=Math.round(h*k)}const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);resolve(c.toDataURL("image/jpeg",quality))};img.onerror=reject;img.src=r.result};r.onerror=reject;r.readAsDataURL(file)})}
 function addHour(t){const p=t.split(":").map(Number);return String((p[0]+1)%24).padStart(2,"0")+":"+String(p[1]).padStart(2,"0")}
 function setupSig(existing){const c=$("#sig"),ctx=c.getContext("2d"),r=c.getBoundingClientRect();c.width=r.width*devicePixelRatio;c.height=r.height*devicePixelRatio;ctx.scale(devicePixelRatio,devicePixelRatio);ctx.lineWidth=2;ctx.lineCap="round";if(existing){const im=new Image();im.onload=()=>ctx.drawImage(im,0,0,r.width,r.height);im.src=existing}let d=false;const p=e=>{const q=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return[t.clientX-q.left,t.clientY-q.top]},st=e=>{d=true;const q=p(e);ctx.beginPath();ctx.moveTo(q[0],q[1]);e.preventDefault()},mv=e=>{if(!d)return;const q=p(e);ctx.lineTo(q[0],q[1]);ctx.stroke();e.preventDefault()},sp=()=>d=false;c.addEventListener("mousedown",st);c.addEventListener("mousemove",mv);window.addEventListener("mouseup",sp);c.addEventListener("touchstart",st,{passive:false});c.addEventListener("touchmove",mv,{passive:false});c.addEventListener("touchend",sp);$("#clearSig").onclick=()=>ctx.clearRect(0,0,r.width,r.height)}
-function bindPdfButtons(){$("[data-pdf]").forEach(b=>b.onclick=async e=>{
- e.stopPropagation();const a=state.appts.find(x=>x.id===b.dataset.pdf);if(!a)return;
- const win=window.open("","_blank");
- try{
-  if(win){win.document.write('<div style="font-family:Arial;padding:30px">Chargement du rapport PDF...</div>')}
-  await loadMedia(a);
-  const url=generateReportPdf(a,null,"view");
-  if(win)win.location.href=url;else location.href=url
- }catch(err){if(win)win.close();alert("PDF impossible : "+err.message)}
-})}
+function closePdfModal(){
+ const m=$("#pdfModal");if(!m)return;
+ const url=m.dataset.url;if(url)URL.revokeObjectURL(url);
+ m.remove()
+}
+function openPdfModal(url,title){
+ closePdfModal();
+ const m=document.createElement("div");m.className="pdf-modal";m.id="pdfModal";m.dataset.url=url;
+ m.innerHTML='<div class="pdf-modal-card"><div class="pdf-modal-head"><div class="pdf-modal-title">'+esc(title||"Rapport PDF")+'</div><div class="pdf-modal-actions"><a class="btn btn-primary" id="downloadPdf" href="'+url+'" download="rapport.pdf">Télécharger</a><button type="button" class="btn btn-soft" id="closePdf">Fermer</button></div></div><iframe class="pdf-frame" src="'+url+'#toolbar=1"></iframe></div>';
+ document.body.appendChild(m);
+ $("#closePdf").onclick=closePdfModal;
+ m.onclick=e=>{if(e.target===m)closePdfModal()}
+}
+function bindPdfButtons(){
+ $$("[data-pdf]").forEach(b=>b.onclick=async e=>{
+  e.stopPropagation();
+  const a=state.appts.find(x=>x.id===b.dataset.pdf);if(!a)return;
+  const old=b.textContent;b.disabled=true;b.textContent="Chargement...";
+  try{
+   await loadMedia(a);
+   const url=generateReportPdf(a,null,"view");
+   const title="Rapport · "+([a.clientFirstName,a.clientLastName].filter(Boolean).join(" ")||a.client||"Client");
+   openPdfModal(url,title)
+  }catch(err){
+   console.error(err);
+   alert("PDF impossible : "+(err?.message||err))
+  }finally{
+   b.disabled=false;b.textContent=old
+  }
+ }
+)}
 function safeFileName(v="rapport"){return String(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9_-]+/g,"_").replace(/^_+|_+$/g,"").slice(0,60)||"rapport"}
 function generateReportPdf(a,secondVisit=null,mode="download"){
  if(!window.jspdf?.jsPDF)throw new Error("jsPDF indisponible");const {jsPDF}=window.jspdf,doc=new jsPDF({unit:"mm",format:"a4"}),pageW=210,margin=16,contentW=178;let y=18;const green=[19,138,91],dark=[16,35,27],muted=[101,117,110],light=[241,248,245];
