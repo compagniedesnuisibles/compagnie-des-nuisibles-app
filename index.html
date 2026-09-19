@@ -478,145 +478,127 @@ canvas{border-radius:16px;border-color:#a7cbb9;box-shadow:inset 0 0 0 1px rgba(1
 </head>
 <body>
 <div id="app"></div>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>\n<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
-const DEFAULT_USERS=[
- {id:"u-admin-demo",email:"admin@demo.local",code:"2468",role:"admin",name:"Administrateur",active:true},
- {id:"u-tech-demo",email:"technicien@demo.local",code:"1234",role:"tech",name:"Technicien Démo",active:true}
-];
+const SUPABASE_URL="https://fmfarfysmhddviezjwvp.supabase.co";
+const SUPABASE_KEY="sb_publishable_uv7CV5zG_SLw8VTQKJCpsA_4A_dkgZU";
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const today=()=>new Date().toISOString().slice(0,10);
 const esc=(v="")=>String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+let realtimeChannel=null;
 let state={
- user:null,
- tab:"planning",
- date:today(),
- calendarView:"day",
- techFilter:"all",
- company:JSON.parse(localStorage.getItem("cdn_company")||"null")||{name:"Compagnie des Nuisibles",siret:"919 530 949 00016",address:"14 rue de Thionville, 75019 Paris",phone:"07 59 67 55 26",email:"compagniedesnuisibles@gmail.com",website:"compagniedesnuisibles.com"},
- users:JSON.parse(localStorage.getItem("cdn_users")||"null")||DEFAULT_USERS,
- appts:JSON.parse(localStorage.getItem("cdn_appts")||"null")||[
-  {id:crypto.randomUUID(),date:today(),start:"09:00",end:"10:00",client:"Client Démo",address:"Levallois-Perret",type:"Dératisation",technician:"Technicien Démo",techEmail:"technicien@demo.local",notes:"Exemple uniquement.",status:"todo",report:"",signature:"",passage:1,parentId:""}
- ]
+ user:null,tab:"planning",date:today(),calendarView:"day",techFilter:"all",
+ users:[],appts:[],
+ company:{name:"Compagnie des Nuisibles",siret:"919 530 949 00016",address:"14 rue de Thionville, 75019 Paris",phone:"07 59 67 55 26",email:"compagniedesnuisibles@gmail.com",website:"compagniedesnuisibles.com"}
 };
-const save=()=>{localStorage.setItem("cdn_appts",JSON.stringify(state.appts));localStorage.setItem("cdn_users",JSON.stringify(state.users));localStorage.setItem("cdn_company",JSON.stringify(state.company))};
-(function ensureTestIntervention(){
- const testId="test-mail-intervention-2026-09-20";
- if(!state.appts.some(a=>a.id===testId)){
-   state.appts.push({
-     id:testId,
-     date:"2026-09-20",
-     start:"10:00",
-     end:"11:00",
-     client:"INTERVENTION TEST MAIL",
-     address:"Levallois-Perret",
-     type:"Dératisation",
-     technician:"Technicien Démo",
-     techEmail:"technicien@demo.local",
-     notes:"Intervention de test pour vérifier le planning et la réception e-mail.",
-     status:"todo",
-     report:"",
-     signature:"",
-     payment:"",
-     photosBefore:[],
-     photosAfter:[],
-     passage:1,
-     parentId:""
-   });
-   save();
- }
-})();
-(function ensureLiveEmailTest(){
- const testId="test-email-live-v2";
- if(!state.appts.some(a=>a.id===testId)){
-   state.appts.push({
-     id:testId,
-     date:today(),
-     start:"17:30",
-     end:"18:30",
-     client:"TEST ENVOI MAIL",
-     address:"Levallois-Perret",
-     type:"Dératisation",
-     technician:"Technicien Démo",
-     techEmail:"technicien@demo.local",
-     notes:"Intervention créée pour tester l’envoi automatique du rapport par e-mail.",
-     status:"todo",
-     report:"",
-     signature:"",
-     payment:"",
-     photosBefore:[],
-     photosAfter:[],
-     passage:1,
-     parentId:""
-   });
-   save();
- }
-})();
+
+function dbToAppt(r){
+ const tech=r.technician||{};
+ return {
+  id:r.id,date:r.intervention_date,start:String(r.start_time||"").slice(0,5),end:String(r.end_time||"").slice(0,5),
+  clientFirstName:r.client_first_name||"",clientLastName:r.client_last_name||"",client:[r.client_first_name,r.client_last_name].filter(Boolean).join(" "),
+  clientPhone:r.client_phone||"",clientEmail:r.client_email||"",address:r.address||"",type:r.service_type||"",
+  technician:tech.name||"",techEmail:tech.email||"",technicianId:r.technician_id,notes:r.notes||"",
+  status:r.status||"todo",report:r.report||"",payment:r.payment||"",amount:r.amount==null?"":String(r.amount),
+  passage:r.passage||1,parentId:r.parent_id||"",signaturePath:r.signature_path||"",photosBefore:[],photosAfter:[],signature:""
+ };
+}
+function apptPayload(d){
+ const u=state.users.find(x=>x.email===d.techEmail||x.id===d.technicianId);
+ return {
+  intervention_date:d.date,start_time:d.start,end_time:d.end,
+  client_first_name:d.clientFirstName||"",client_last_name:d.clientLastName||d.client||"Client",
+  client_phone:d.clientPhone||null,client_email:d.clientEmail||null,address:d.address,
+  service_type:d.type,technician_id:u?.id||d.technicianId,notes:d.notes||null
+ };
+}
+async function loadData(){
+ const {data:{user}}=await sb.auth.getUser();
+ if(!user){state.user=null;state.users=[];state.appts=[];return}
+ const {data:me,error:meErr}=await sb.from("profiles").select("*").eq("id",user.id).single();
+ if(meErr||!me||me.active!==true){await sb.auth.signOut();state.user=null;throw new Error("Compte désactivé ou non configuré.")}
+ state.user=me;
+ const [usersRes,companyRes,apptRes]=await Promise.all([
+  sb.from("profiles").select("id,email,name,role,active").order("name"),
+  sb.from("company_settings").select("*").eq("id",1).single(),
+  sb.from("interventions").select("*, technician:profiles!interventions_technician_id_fkey(id,name,email)").order("intervention_date").order("start_time")
+ ]);
+ if(usersRes.error)throw usersRes.error;
+ if(apptRes.error)throw apptRes.error;
+ state.users=usersRes.data||[];
+ if(companyRes.data)state.company=companyRes.data;
+ state.appts=(apptRes.data||[]).map(dbToAppt)
+}
+function startRealtime(){
+ if(realtimeChannel)sb.removeChannel(realtimeChannel);
+ let timer=null;
+ const refresh=()=>{clearTimeout(timer);timer=setTimeout(async()=>{try{await loadData();render()}catch(e){console.error(e)}},250)};
+ realtimeChannel=sb.channel("cdn-v5-live")
+  .on("postgres_changes",{event:"*",schema:"public",table:"interventions"},refresh)
+  .on("postgres_changes",{event:"*",schema:"public",table:"profiles"},refresh)
+  .subscribe()
+}
+async function initApp(){
+ try{
+  const {data:{session}}=await sb.auth.getSession();
+  if(session){await loadData();startRealtime()}
+ }catch(e){console.error(e)}
+ render()
+}
 function shell(sub,body){
  const role=state.user?.role==="admin"?"Administrateur":"Technicien";
  return '<div class="v4-shell"><div class="v4-topbar"><div class="v4-brand"><div class="logo">CN</div><div class="v4-brand-copy"><div class="v4-brand-title">Compagnie des Nuisibles</div><div class="v4-brand-sub">'+esc(sub)+'</div></div></div><div class="v4-userbox"><span class="v4-role">'+role+'</span><button id="logout" class="btn btn-soft">Déconnexion</button></div></div>'+body+'</div>'
 }
 function render(){if(!state.user)return login();state.user.role==="admin"?admin():tech()}
 function login(){
- $("#app").innerHTML='<div class="login"><div class="card"><div class="login-head"><div class="logo">CN</div><div><div class="brand" style="font-size:1.15rem">Compagnie des Nuisibles</div><div class="muted">Espace interventions</div></div></div><div class="notice">Version de démonstration sécurisée sans données clients réelles.</div><form id="login"><div class="field"><label>E-mail professionnel</label><input name="email" type="email" required placeholder="votre@email.fr"></div><div class="field"><label>Code d’accès</label><input name="code" inputmode="numeric" required placeholder="••••"></div><button class="btn btn-primary" style="width:100%">Se connecter</button></form><div class="muted" style="margin-top:14px">Admin démo : admin@demo.local / 2468 · Technicien : technicien@demo.local / 1234</div></div></div>';
- $("#login").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));const u=state.users.find(x=>x.active!==false&&x.email===d.email.trim().toLowerCase()&&x.code===d.code.trim());if(!u)return alert("E-mail, code incorrect ou compte désactivé");state.user=u;render()}
+ $("#app").innerHTML='<div class="login"><div class="card"><div class="login-head"><div class="logo">CN</div><div><div class="brand" style="font-size:1.15rem">Compagnie des Nuisibles</div><div class="muted">V5 · Espace interventions synchronisé</div></div></div><form id="login"><div class="field"><label>E-mail professionnel</label><input name="email" type="email" required autocomplete="username"></div><div class="field"><label>Code d’accès</label><input name="code" type="password" minlength="6" required autocomplete="current-password" placeholder="6 caractères minimum"></div><button class="btn btn-primary" style="width:100%">Se connecter</button></form><button id="bootstrap" class="btn btn-soft" style="width:100%;margin-top:10px">Première configuration administrateur</button><div class="muted" style="margin-top:13px">Les rendez-vous et rapports sont maintenant synchronisés entre les appareils.</div></div></div>';
+ $("#login").onsubmit=async e=>{
+  e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));const btn=e.currentTarget.querySelector("button");
+  btn.disabled=true;btn.textContent="Connexion...";
+  const {error}=await sb.auth.signInWithPassword({email:d.email.trim().toLowerCase(),password:d.code});
+  if(error){btn.disabled=false;btn.textContent="Se connecter";return alert("Connexion impossible : "+error.message)}
+  try{await loadData();startRealtime();render()}catch(err){alert(err.message);render()}
+ };
+ $("#bootstrap").onclick=async()=>{
+  const name=prompt("Ton nom pour le compte administrateur :","Administrateur");
+  if(!name)return;
+  const code=prompt("Choisis un code d’accès de 6 caractères minimum :");
+  if(!code||code.length<6)return alert("Le code doit contenir au moins 6 caractères.");
+  const {data,error}=await sb.auth.signUp({email:"compagniedesnuisibles@gmail.com",password:code,options:{data:{name}}});
+  if(error)return alert("Création impossible : "+error.message);
+  if(data.session){await loadData();startRealtime();render()}
+  else alert("Compte créé. Vérifie l’e-mail compagniedesnuisibles@gmail.com pour confirmer le compte, puis connecte-toi.")
+ }
 }
 function nav(){
- const items=[
-  ["planning","▦","Planning"],
-  ["new","+","Nouvelle intervention"],
-  ["history","↺","Historique"],
-  ["users","◉","Utilisateurs"],
-  ["company","⚙","Société"]
- ];
- return '<div class="nav">'+items.map(([id,ico,label])=>'<button data-tab="'+id+'" class="'+(state.tab===id?"active":"")+'"><span class="nav-ico">'+ico+'</span><span>'+label+'</span></button>').join("")+'</div>'
+ const items=[["planning","▦","Planning"],["new","+","Nouvelle intervention"],["history","↺","Historique"],["users","◉","Utilisateurs"],["company","⚙","Société"]];
+ return '<div class="nav">'+items.map(x=>'<button data-tab="'+x[0]+'" class="'+(state.tab===x[0]?"active":"")+'"><span class="nav-ico">'+x[1]+'</span><span>'+x[2]+'</span></button>').join("")+'</div>'
 }
 function admin(){
- const list=state.appts.filter(a=>a.date===state.date).sort((a,b)=>a.start.localeCompare(b.start));
  let page="";
- if(state.tab==="planning") page=planning(list);
- else if(state.tab==="new") page=form();
- else if(state.tab==="history") page=history();
- else if(state.tab==="users") page=usersView();
+ if(state.tab==="planning")page=planning();
+ else if(state.tab==="new")page=form();
+ else if(state.tab==="history")page=history();
+ else if(state.tab==="users")page=usersView();
  else page=companyView();
- const titles={
-  planning:["Tableau de bord","Pilotage des interventions et disponibilités de l’équipe."],
-  new:["Nouvelle intervention","Crée une fiche client et assigne un technicien."],
-  history:["Historique","Retrouve les interventions, rapports et PDF."],
-  users:["Équipe","Gère les accès administrateurs et techniciens."],
-  company:["Société","Informations utilisées sur les documents professionnels."]
- };
+ const titles={planning:["Tableau de bord","Pilotage des interventions et disponibilités de l’équipe."],new:["Nouvelle intervention","Crée une fiche client et assigne un technicien."],history:["Historique","Retrouve les interventions, rapports et PDF."],users:["Équipe","Gère les accès administrateurs et techniciens."],company:["Société","Informations utilisées sur les documents professionnels."]};
  const t=titles[state.tab]||titles.planning;
  const body='<div class="workspace"><aside class="sidebar"><div class="sidebar-head"><div class="sidebar-title">Navigation</div></div>'+nav()+'</aside><main class="workspace-main"><div class="page-heading"><div><h1>'+t[0]+'</h1><p>'+t[1]+'</p></div></div>'+page+'</main></div>';
  $("#app").innerHTML=shell("Centre de gestion",body);bindAdmin()
 }
-function planning(list){
- const all=calendarSource(true);
- const visible=filterCalendarTech(all);
- const dayList=visible.filter(a=>a.date===state.date).sort((a,b)=>a.start.localeCompare(b.start));
- const done=dayList.filter(a=>a.status==="done").length;
- const todo=dayList.filter(a=>a.status!=="done").length;
- const techs=state.users.filter(u=>u.role==="tech"&&u.active!==false);
+function planning(){
+ const visible=filterCalendarTech(state.appts),dayList=visible.filter(a=>a.date===state.date).sort((a,b)=>a.start.localeCompare(b.start));
+ const done=dayList.filter(a=>a.status==="done").length,todo=dayList.length-done;
  const followups=state.appts.filter(a=>(a.passage||1)===2&&a.status!=="done").length;
  const revenue=dayList.filter(a=>a.status==="done"&&a.amount).reduce((s,a)=>s+(Number(a.amount)||0),0);
- return '<div class="crm-kpis">'+
-  '<div class="crm-kpi"><div class="kpi-label">INTERVENTIONS DU JOUR</div><strong>'+dayList.length+'</strong><div class="kpi-foot">'+todo+' restant(es)</div></div>'+
-  '<div class="crm-kpi"><div class="kpi-label">TERMINÉES</div><strong>'+done+'</strong><div class="kpi-foot">Rapports validés</div></div>'+
-  '<div class="crm-kpi"><div class="kpi-label">2E PASSAGES</div><strong>'+followups+'</strong><div class="kpi-foot">À planifier / réaliser</div></div>'+
-  '<div class="crm-kpi"><div class="kpi-label">CA DU JOUR</div><strong>'+revenue.toLocaleString("fr-FR")+' €</strong><div class="kpi-foot">Montants saisis par les techniciens</div></div>'+
- '</div>'+
- '<div class="card calendar-card">'+calendarControls(techs,true)+calendarBody(visible,true)+'</div>'
+ const techs=state.users.filter(u=>u.role==="tech"&&u.active);
+ return '<div class="crm-kpis"><div class="crm-kpi"><div class="kpi-label">INTERVENTIONS DU JOUR</div><strong>'+dayList.length+'</strong><div class="kpi-foot">'+todo+' restante(s)</div></div><div class="crm-kpi"><div class="kpi-label">TERMINÉES</div><strong>'+done+'</strong><div class="kpi-foot">Rapports validés</div></div><div class="crm-kpi"><div class="kpi-label">2E PASSAGES</div><strong>'+followups+'</strong><div class="kpi-foot">À réaliser</div></div><div class="crm-kpi"><div class="kpi-label">CA DU JOUR</div><strong>'+revenue.toLocaleString("fr-FR")+' €</strong><div class="kpi-foot">Montants techniciens</div></div></div><div class="card calendar-card">'+calendarControls(techs,true)+calendarBody(visible,true)+'</div>'
 }
-function calendarSource(adminMode){
- return adminMode?state.appts:state.appts.filter(a=>a.techEmail===state.user.email)
-}
-function filterCalendarTech(list){
- if(state.user?.role!=="admin"||state.techFilter==="all")return list;
- return list.filter(a=>a.techEmail===state.techFilter)
-}
+function filterCalendarTech(list){return state.user?.role==="admin"&&state.techFilter!=="all"?list.filter(a=>a.techEmail===state.techFilter):list}
 function calendarControls(techs,showFilter){
- const filter=showFilter?'<select id="techFilter" style="width:auto;min-width:190px"><option value="all">Tous les techniciens</option>'+techs.map(u=>'<option value="'+esc(u.email)+'" '+(state.techFilter===u.email?"selected":"")+'>'+esc(u.name)+'</option>').join("")+'</select>':'';
- return '<div class="calendar-toolbar"><div><div class="view-switch">'+["day","week","month","year"].map(v=>'<button type="button" data-cal-view="'+v+'" class="'+(state.calendarView===v?"active":"")+'">'+({day:"Jour",week:"Semaine",month:"Mois",year:"Année"}[v])+'</button>').join("")+'</div></div><div class="calendar-nav"><button class="btn btn-soft" type="button" id="calPrev">‹</button><button class="btn btn-soft" type="button" id="calToday">Aujourd’hui</button><button class="btn btn-soft" type="button" id="calNext">›</button><input id="calDate" type="date" value="'+state.date+'" style="width:auto">'+filter+'</div></div>'
+ const filter=showFilter?'<select id="techFilter" style="width:auto;min-width:190px"><option value="all">Tous les techniciens</option>'+techs.map(u=>'<option value="'+esc(u.email)+'" '+(state.techFilter===u.email?"selected":"")+'>'+esc(u.name)+'</option>').join("")+'</select>':"";
+ return '<div class="calendar-toolbar"><div class="view-switch">'+["day","week","month","year"].map(v=>'<button type="button" data-cal-view="'+v+'" class="'+(state.calendarView===v?"active":"")+'">'+({day:"Jour",week:"Semaine",month:"Mois",year:"Année"}[v])+'</button>').join("")+'</div><div class="calendar-nav"><button class="btn btn-soft" type="button" id="calPrev">‹</button><button class="btn btn-soft" type="button" id="calToday">Aujourd’hui</button><button class="btn btn-soft" type="button" id="calNext">›</button><input id="calDate" type="date" value="'+state.date+'" style="width:auto">'+filter+'</div></div>'
 }
 function calendarBody(list,adminMode){
  if(state.calendarView==="day")return dayCalendar(list,adminMode);
@@ -624,7 +606,7 @@ function calendarBody(list,adminMode){
  if(state.calendarView==="month")return monthCalendar(list,adminMode);
  return yearCalendar(list)
 }
-function dateObj(s){const [y,m,d]=s.split("-").map(Number);return new Date(Date.UTC(y,m-1,d))}
+function dateObj(s){const p=s.split("-").map(Number);return new Date(Date.UTC(p[0],p[1]-1,p[2]))}
 function dateStr(d){return d.toISOString().slice(0,10)}
 function addDays(s,n){const d=dateObj(s);d.setUTCDate(d.getUTCDate()+n);return dateStr(d)}
 function startOfWeek(s){const d=dateObj(s),day=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-day);return dateStr(d)}
@@ -633,276 +615,152 @@ function fmtDay(s){return new Intl.DateTimeFormat("fr-FR",{weekday:"short",day:"
 function fmtMonth(y,m){return new Intl.DateTimeFormat("fr-FR",{month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(Date.UTC(y,m,1)))}
 function dayCalendar(list,adminMode){
  const day=list.filter(a=>a.date===state.date).sort((a,b)=>a.start.localeCompare(b.start));
- return '<div class="agenda-day-head"><div><h2 style="margin:0">'+fmtDay(state.date)+'</h2><div class="muted">'+day.length+' intervention(s)</div></div><span class="availability">'+(day.length===0?"Journée disponible":day.length<4?"Encore disponible":"Journée chargée")+'</span></div>'+(day.length?day.map(a=>card(a,adminMode)).join(""):'<div class="notice">Aucune intervention planifiée : créneau disponible.</div>')
+ return '<div class="agenda-day-head"><div><h2 style="margin:0">'+fmtDay(state.date)+'</h2><div class="muted">'+day.length+' intervention(s)</div></div><span class="availability">'+(day.length===0?"Journée disponible":day.length<4?"Encore disponible":"Journée chargée")+'</span></div>'+(day.length?day.map(a=>card(a,adminMode)).join(""):'<div class="notice">Aucune intervention planifiée.</div>')
 }
 function weekCalendar(list,adminMode){
- const start=startOfWeek(state.date);
- let html='<div class="week-grid">';
- for(let i=0;i<7;i++){const d=addDays(start,i),items=list.filter(a=>a.date===d).sort((a,b)=>a.start.localeCompare(b.start));html+='<div class="week-day '+(d===today()?"today":"")+'" data-cal-date="'+d+'"><div class="week-title">'+fmtDay(d)+'</div>'+(items.length?items.map(a=>'<div class="cal-event" title="'+esc(a.client)+'">'+esc(a.start)+' · '+esc(a.client)+(adminMode?' · '+esc(a.technician):'')+'</div>').join(""):'<div class="cal-free">Disponible</div>')+'</div>'}
- return html+'</div>'
+ const start=startOfWeek(state.date);let h='<div class="week-grid">';
+ for(let i=0;i<7;i++){const d=addDays(start,i),items=list.filter(a=>a.date===d).sort((a,b)=>a.start.localeCompare(b.start));h+='<div class="week-day '+(d===today()?"today":"")+'" data-cal-date="'+d+'"><div class="week-title">'+fmtDay(d)+'</div>'+(items.length?items.map(a=>'<div class="cal-event">'+esc(a.start)+' · '+esc(a.client)+(adminMode?' · '+esc(a.technician):'')+'</div>').join(""):'<div class="cal-free">Disponible</div>')+'</div>'}return h+'</div>'
 }
 function monthCalendar(list,adminMode){
- const {y,m}=monthInfo(state.date), first=new Date(Date.UTC(y,m,1)), offset=(first.getUTCDay()+6)%7, start=new Date(Date.UTC(y,m,1-offset));
- const heads=["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].map(x=>'<div class="cal-head">'+x+'</div>').join("");
- let cells="";
- for(let i=0;i<42;i++){const d=new Date(start);d.setUTCDate(start.getUTCDate()+i);const ds=dateStr(d),inMonth=d.getUTCMonth()===m,items=list.filter(a=>a.date===ds).sort((a,b)=>a.start.localeCompare(b.start));cells+='<div class="cal-day '+(!inMonth?"out ":"")+(ds===today()?"today":"")+'" data-cal-date="'+ds+'"><div class="cal-num">'+d.getUTCDate()+'</div><div class="cal-events">'+items.slice(0,3).map(a=>'<div class="cal-event">'+esc(a.start)+' '+esc(a.client)+(adminMode?' · '+esc(a.technician):'')+'</div>').join("")+'</div>'+(items.length===0&&inMonth?'<div class="cal-free">Disponible</div>':'')+(items.length>3?'<div class="muted">+'+(items.length-3)+'</div>':'')+'</div>'}
- return '<div class="section-title"><div><h2>'+fmtMonth(y,m)+'</h2><div class="muted">Clique sur un jour pour ouvrir son planning</div></div></div><div class="cal-grid">'+heads+cells+'</div>'
+ const o=monthInfo(state.date),first=new Date(Date.UTC(o.y,o.m,1)),offset=(first.getUTCDay()+6)%7,start=new Date(Date.UTC(o.y,o.m,1-offset));
+ const heads=["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].map(x=>'<div class="cal-head">'+x+'</div>').join("");let cells="";
+ for(let i=0;i<42;i++){const d=new Date(start);d.setUTCDate(start.getUTCDate()+i);const ds=dateStr(d),inM=d.getUTCMonth()===o.m,items=list.filter(a=>a.date===ds).sort((a,b)=>a.start.localeCompare(b.start));cells+='<div class="cal-day '+(!inM?"out ":"")+(ds===today()?"today":"")+'" data-cal-date="'+ds+'"><div class="cal-num">'+d.getUTCDate()+'</div><div class="cal-events">'+items.slice(0,3).map(a=>'<div class="cal-event">'+esc(a.start)+' '+esc(a.client)+(adminMode?' · '+esc(a.technician):'')+'</div>').join("")+'</div>'+(items.length===0&&inM?'<div class="cal-free">Disponible</div>':"")+'</div>'}return '<div class="section-title"><h2>'+fmtMonth(o.y,o.m)+'</h2></div><div class="cal-grid">'+heads+cells+'</div>'
 }
 function yearCalendar(list){
- const {y}=monthInfo(state.date);let html='<div class="section-title"><div><h2>'+y+'</h2><div class="muted">Vue annuelle des journées occupées</div></div></div><div class="year-grid">';
- for(let m=0;m<12;m++){const first=new Date(Date.UTC(y,m,1)),offset=(first.getUTCDay()+6)%7,start=new Date(Date.UTC(y,m,1-offset));let cells="";for(let i=0;i<42;i++){const d=new Date(start);d.setUTCDate(start.getUTCDate()+i);const ds=dateStr(d),inMonth=d.getUTCMonth()===m,busy=list.some(a=>a.date===ds);cells+='<div class="mini-cell '+(!inMonth?"out ":"")+(busy&&inMonth?"busy":"")+'" data-cal-date="'+ds+'">'+d.getUTCDate()+'</div>'}html+='<div class="mini-month"><h3>'+fmtMonth(y,m).replace(" "+y,"")+'</h3><div class="mini-grid">'+cells+'</div></div>'}
- return html+'</div></div>'
+ const o=monthInfo(state.date);let h='<div class="year-grid">';
+ for(let m=0;m<12;m++){const first=new Date(Date.UTC(o.y,m,1)),off=(first.getUTCDay()+6)%7,start=new Date(Date.UTC(o.y,m,1-off));let cells="";for(let i=0;i<42;i++){const d=new Date(start);d.setUTCDate(start.getUTCDate()+i);const ds=dateStr(d),inM=d.getUTCMonth()===m,busy=list.some(a=>a.date===ds);cells+='<div class="mini-cell '+(!inM?"out ":"")+(busy&&inM?"busy":"")+'" data-cal-date="'+ds+'">'+d.getUTCDate()+'</div>'}h+='<div class="mini-month"><h3>'+fmtMonth(o.y,m).replace(" "+o.y,"")+'</h3><div class="mini-grid">'+cells+'</div></div>'}return h+'</div>'
 }
 function card(a,adminMode){
- const passage=a.passage||1;
- const fullClient=[a.clientFirstName,a.clientLastName].filter(Boolean).join(" ")||a.client||"Client";
- const pdfBtn=a.status==="done"?'<button class="btn btn-soft" data-pdf="'+a.id+'">PDF</button>':"";
- const amount=a.amount?'<span class="badge amount-badge">'+Number(a.amount).toLocaleString("fr-FR")+' € TTC</span>':"";
- return '<div class="appt"><div class="time"><div class="time-start">'+esc(a.start)+'</div><div class="muted time-end">'+esc(a.end)+'</div></div><div class="appt-main"><div class="appt-name">'+esc(fullClient)+'</div><div class="appt-address">'+esc(a.address)+'</div><div class="appt-meta"><span class="badge green">'+esc(a.type)+'</span><span class="badge">Passage '+passage+'</span><span class="badge">'+esc(a.technician)+'</span><span class="badge '+(a.status==="done"?"done":"todo")+'">'+(a.status==="done"?"Terminé":"À faire")+'</span>'+amount+(a.payment?'<span class="badge pay-chip">'+esc(a.payment)+'</span>':'')+'</div></div><div class="actions">'+pdfBtn+(adminMode?'<button class="btn btn-soft" data-edit="'+a.id+'">Modifier</button><button class="btn btn-danger" data-del="'+a.id+'">Supprimer</button>':'<button class="btn btn-primary" data-report="'+a.id+'">'+(a.status==="done"?"Voir le rapport":"Faire le rapport")+'</button>')+'</div></div>'
+ const full=[a.clientFirstName,a.clientLastName].filter(Boolean).join(" ")||a.client||"Client",pdf=a.status==="done"?'<button class="btn btn-soft" data-pdf="'+a.id+'">PDF</button>':"",amt=a.amount?'<span class="badge amount-badge">'+Number(a.amount).toLocaleString("fr-FR")+' € TTC</span>':"";
+ return '<div class="appt"><div class="time"><div class="time-start">'+esc(a.start)+'</div><div class="muted time-end">'+esc(a.end)+'</div></div><div class="appt-main"><div class="appt-name">'+esc(full)+'</div><div class="appt-address">'+esc(a.address)+'</div><div class="appt-meta"><span class="badge green">'+esc(a.type)+'</span><span class="badge">Passage '+(a.passage||1)+'</span><span class="badge">'+esc(a.technician)+'</span><span class="badge '+(a.status==="done"?"done":"todo")+'">'+(a.status==="done"?"Terminé":"À faire")+'</span>'+amt+(a.payment?'<span class="badge pay-chip">'+esc(a.payment)+'</span>':"")+'</div></div><div class="actions">'+pdf+(adminMode?'<button class="btn btn-soft" data-edit="'+a.id+'">Modifier</button><button class="btn btn-danger" data-del="'+a.id+'">Supprimer</button>':'<button class="btn btn-primary" data-report="'+a.id+'">'+(a.status==="done"?"Voir le rapport":"Faire le rapport")+'</button>')+'</div></div>'
 }
 function form(id=""){
- const a=id?state.appts.find(x=>x.id===id):null;
- const techs=state.users.filter(u=>u.role==="tech"&&u.active!==false);
- const selectedEmail=a?.techEmail||techs[0]?.email||"";
- const legacyParts=(a?.client||"").trim().split(/\s+/);
- const first=a?.clientFirstName||"";
- const last=a?.clientLastName||(a?.client&&!first?a.client:"");
- return '<div class="card"><h2>'+(a?"Modifier":"Nouvelle")+' intervention</h2><form id="apptForm" data-id="'+(a?.id||"")+'">'+
- '<div class="grid grid2"><div>'+
- '<div class="field"><label>Date</label><input name="date" type="date" required value="'+(a?.date||state.date)+'"></div>'+
- '<div class="grid grid2"><div class="field"><label>Début</label><input name="start" type="time" required value="'+(a?.start||"09:00")+'"></div><div class="field"><label>Fin</label><input name="end" type="time" required value="'+(a?.end||"10:00")+'"></div></div>'+
- '<div class="grid grid2"><div class="field"><label>Prénom client</label><input name="clientFirstName" value="'+esc(first)+'" placeholder="Prénom"></div><div class="field"><label>Nom client</label><input name="clientLastName" required value="'+esc(last)+'" placeholder="Nom"></div></div>'+
- '<div class="grid grid2"><div class="field"><label>Téléphone</label><input name="clientPhone" type="tel" value="'+esc(a?.clientPhone||"")+'" placeholder="06..."></div><div class="field"><label>E-mail client</label><input name="clientEmail" type="email" value="'+esc(a?.clientEmail||"")+'" placeholder="client@email.fr"></div></div>'+
- '<div class="field"><label>Adresse complète</label><input name="address" required value="'+esc(a?.address||"")+'" placeholder="N°, rue, code postal, ville"></div>'+
- '</div><div>'+
- '<div class="field"><label>Type d’intervention</label><select name="type">'+["Dératisation","Punaises de lit","Cafards","Désinfection","Guêpes/Frelons","Autre"].map(v=>'<option '+(a?.type===v?"selected":"")+'>'+v+'</option>').join("")+'</select></div>'+
- '<div class="field"><label>Technicien</label><select name="techEmail" id="techSelect" required><option value="">Choisir un technicien</option>'+techs.map(u=>'<option value="'+esc(u.email)+'" '+(selectedEmail===u.email?"selected":"")+'>'+esc(u.name)+' — '+esc(u.email)+'</option>').join("")+'</select></div>'+
- '<input type="hidden" name="technician" id="techName" value="'+esc(a?.technician||"")+'">'+
- '<div class="field"><label>Informations / consignes client</label><textarea name="notes" placeholder="Accès, étage, digicode, observations, consignes...">'+esc(a?.notes||"")+'</textarea></div>'+
- '</div></div><div class="actions"><button class="btn btn-primary">Enregistrer</button><button id="cancel" type="button" class="btn btn-soft">Annuler</button></div></form></div>'
+ const a=id?state.appts.find(x=>x.id===id):null,techs=state.users.filter(u=>u.role==="tech"&&u.active),sel=a?.techEmail||techs[0]?.email||"";
+ return '<div class="card"><h2>'+(a?"Modifier":"Nouvelle")+' intervention</h2><form id="apptForm" data-id="'+(a?.id||"")+'"><div class="grid grid2"><div><div class="field"><label>Date</label><input name="date" type="date" required value="'+(a?.date||state.date)+'"></div><div class="grid grid2"><div class="field"><label>Début</label><input name="start" type="time" required value="'+(a?.start||"09:00")+'"></div><div class="field"><label>Fin</label><input name="end" type="time" required value="'+(a?.end||"10:00")+'"></div></div><div class="grid grid2"><div class="field"><label>Prénom client</label><input name="clientFirstName" value="'+esc(a?.clientFirstName||"")+'"></div><div class="field"><label>Nom client</label><input name="clientLastName" required value="'+esc(a?.clientLastName||a?.client||"")+'"></div></div><div class="grid grid2"><div class="field"><label>Téléphone</label><input name="clientPhone" type="tel" value="'+esc(a?.clientPhone||"")+'"></div><div class="field"><label>E-mail</label><input name="clientEmail" type="email" value="'+esc(a?.clientEmail||"")+'"></div></div><div class="field"><label>Adresse complète</label><input name="address" required value="'+esc(a?.address||"")+'"></div></div><div><div class="field"><label>Type d’intervention</label><select name="type">'+["Dératisation","Punaises de lit","Cafards","Désinfection","Guêpes/Frelons","Autre"].map(v=>'<option '+(a?.type===v?"selected":"")+'>'+v+'</option>').join("")+'</select></div><div class="field"><label>Technicien</label><select name="techEmail" required><option value="">Choisir</option>'+techs.map(u=>'<option value="'+esc(u.email)+'" '+(sel===u.email?"selected":"")+'>'+esc(u.name)+'</option>').join("")+'</select></div><div class="field"><label>Informations / consignes client</label><textarea name="notes">'+esc(a?.notes||"")+'</textarea></div></div></div><div class="actions"><button class="btn btn-primary">Enregistrer</button><button id="cancel" type="button" class="btn btn-soft">Annuler</button></div></form></div>'
 }
-function history(){return '<div class="card"><h2>Historique</h2>'+[...state.appts].sort((a,b)=>(b.date+b.start).localeCompare(a.date+a.start)).map(a=>card(a,false)).join("")+'</div>'}
+function history(){return '<div class="card"><h2>Historique</h2>'+[...state.appts].sort((a,b)=>(b.date+b.start).localeCompare(a.date+a.start)).map(a=>card(a,true)).join("")+'</div>'}
+function usersView(){
+ const admins=state.users.filter(u=>u.role==="admin"),techs=state.users.filter(u=>u.role==="tech");
+ const uc=u=>'<div class="appt" style="grid-template-columns:52px minmax(0,1fr) auto"><div class="logo" style="width:44px;height:44px">'+esc((u.name||"?").slice(0,2).toUpperCase())+'</div><div><strong>'+esc(u.name)+'</strong><div class="muted">'+esc(u.email)+'</div><span class="badge">'+(u.role==="admin"?"Administrateur":"Technicien")+'</span><span class="badge '+(u.active?"done":"")+'">'+(u.active?"Actif":"Désactivé")+'</span></div><div class="actions"><button class="btn btn-soft" data-user-edit="'+u.id+'">Modifier</button><button class="btn '+(u.active?"btn-danger":"btn-soft")+'" data-user-toggle="'+u.id+'">'+(u.active?"Désactiver":"Réactiver")+'</button></div></div>';
+ return '<div class="grid grid2"><div class="card"><h2>Créer / modifier un utilisateur</h2><form id="userForm"><input type="hidden" name="id" id="userId"><div class="field"><label>Nom</label><input name="name" id="userName" required></div><div class="field"><label>Rôle</label><select name="role" id="userRole"><option value="tech">Technicien</option><option value="admin">Administrateur</option></select></div><div class="field"><label>E-mail</label><input name="email" id="userEmail" type="email" required></div><div class="field"><label>Code d’accès</label><input name="code" id="userCode" type="password" minlength="6" placeholder="6 caractères minimum"></div><div class="muted" style="margin-bottom:12px">En modification, laisse le code vide pour le conserver.</div><div class="actions"><button class="btn btn-primary" id="saveUser">Créer l’utilisateur</button><button type="button" class="btn btn-soft" id="cancelUser" style="display:none">Annuler</button></div></form></div><div><div class="card"><h2>Techniciens</h2>'+(techs.length?techs.map(uc).join(""):'<div class="muted">Aucun technicien.</div>')+'</div><div class="card"><h2>Administrateurs</h2>'+(admins.length?admins.map(uc).join(""):'<div class="muted">Aucun administrateur.</div>')+'</div></div></div>'
+}
 function companyView(){
  const x=state.company||{};
- return '<div class="card"><div class="section-title"><div><h2>Informations société</h2><div class="muted">Ces informations apparaîtront automatiquement sur tous les rapports PDF.</div></div></div><form id="companyForm"><div class="grid grid2"><div><div class="field"><label>Raison sociale / nom commercial</label><input name="name" required value="'+esc(x.name||"")+'"></div><div class="field"><label>SIRET</label><input name="siret" value="'+esc(x.siret||"")+'" placeholder="14 chiffres"></div><div class="field"><label>Adresse société</label><input name="address" value="'+esc(x.address||"")+'" placeholder="Adresse complète"></div></div><div><div class="field"><label>Téléphone</label><input name="phone" value="'+esc(x.phone||"")+'"></div><div class="field"><label>E-mail</label><input name="email" type="email" value="'+esc(x.email||"")+'"></div><div class="field"><label>Site internet</label><input name="website" value="'+esc(x.website||"")+'"></div></div></div><button class="btn btn-primary">Enregistrer les informations société</button></form></div>'
-}
-function usersView(){
- const admins=state.users.filter(u=>u.role==="admin"), techs=state.users.filter(u=>u.role==="tech");
- const userCard=u=>'<div class="appt" style="grid-template-columns:52px minmax(0,1fr) auto"><div class="logo" style="width:44px;height:44px;border-radius:12px">'+esc((u.name||"?").slice(0,2).toUpperCase())+'</div><div><strong>'+esc(u.name)+'</strong><div class="muted">'+esc(u.email)+'</div><div class="statusline"><span class="badge '+(u.role==="admin"?"green":"")+'">'+(u.role==="admin"?"Administrateur":"Technicien")+'</span><span class="badge '+(u.active!==false?"done":"")+'">'+(u.active!==false?"Actif":"Désactivé")+'</span></div></div><div class="actions"><button class="btn btn-soft" data-user-edit="'+u.id+'">Modifier</button><button class="btn '+(u.active!==false?"btn-danger":"btn-soft")+'" data-user-toggle="'+u.id+'">'+(u.active!==false?"Désactiver":"Réactiver")+'</button></div></div>';
- return '<div class="grid grid2"><div class="card"><div class="section-title"><div><h2>Utilisateurs</h2><div class="muted">Crée les comptes administrateurs et techniciens.</div></div></div><form id="userForm"><input type="hidden" name="id" id="userId"><div class="field"><label>Nom</label><input name="name" id="userName" required placeholder="Nom du collaborateur"></div><div class="field"><label>Rôle</label><select name="role" id="userRole"><option value="tech">Technicien</option><option value="admin">Administrateur</option></select></div><div class="field"><label>E-mail de connexion</label><input name="email" id="userEmail" type="email" required placeholder="prenom@entreprise.fr"></div><div class="field"><label>Code de connexion</label><input name="code" id="userCode" inputmode="numeric" minlength="4" required placeholder="4 chiffres minimum"></div><div class="actions"><button class="btn btn-primary" id="saveUser">Créer l’utilisateur</button><button type="button" class="btn btn-soft" id="cancelUser" style="display:none">Annuler</button></div></form></div><div><div class="card"><h2 style="margin-top:0">Techniciens</h2>'+(techs.length?techs.map(userCard).join(""):'<div class="muted">Aucun technicien.</div>')+'</div><div class="card"><h2 style="margin-top:0">Administrateurs</h2>'+(admins.length?admins.map(userCard).join(""):'<div class="muted">Aucun administrateur.</div>')+'</div></div></div>'
+ return '<div class="card"><h2>Informations société</h2><form id="companyForm"><div class="grid grid2"><div><div class="field"><label>Raison sociale</label><input name="name" required value="'+esc(x.name||"")+'"></div><div class="field"><label>SIRET</label><input name="siret" value="'+esc(x.siret||"")+'"></div><div class="field"><label>Adresse</label><input name="address" value="'+esc(x.address||"")+'"></div></div><div><div class="field"><label>Téléphone</label><input name="phone" value="'+esc(x.phone||"")+'"></div><div class="field"><label>E-mail</label><input name="email" type="email" value="'+esc(x.email||"")+'"></div><div class="field"><label>Site</label><input name="website" value="'+esc(x.website||"")+'"></div></div></div><button class="btn btn-primary">Enregistrer</button></form></div>'
 }
 function bindAdmin(){
- $("#logout").onclick=()=>{state.user=null;render()};
+ $("#logout").onclick=logout;
  $$("[data-tab]").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;render()});
  bindCalendar();
- $$("[data-del]").forEach(b=>b.onclick=()=>{if(confirm("Supprimer cette intervention ?")){state.appts=state.appts.filter(a=>a.id!==b.dataset.del);save();render()}});
- $$("[data-edit]").forEach(b=>b.onclick=()=>{$("#app").innerHTML=shell("Espace administrateur",form(b.dataset.edit));$("#logout").onclick=()=>{state.user=null;render()};bindForm()});
- bindForm();
- bindPdfButtons();
- bindUsers();
- bindCompany()
+ $$("[data-del]").forEach(b=>b.onclick=async()=>{if(!confirm("Supprimer cette intervention ?"))return;const {error}=await sb.from("interventions").delete().eq("id",b.dataset.del);if(error)return alert(error.message);await loadData();render()});
+ $$("[data-edit]").forEach(b=>b.onclick=()=>{$("#app").innerHTML=shell("Modifier intervention",form(b.dataset.edit));$("#logout").onclick=logout;bindForm()});
+ bindForm();bindPdfButtons();bindUsers();bindCompany()
 }
+async function logout(){if(realtimeChannel){sb.removeChannel(realtimeChannel);realtimeChannel=null}await sb.auth.signOut();state.user=null;render()}
 function bindCalendar(){
  if($("#calDate"))$("#calDate").onchange=e=>{state.date=e.target.value;render()};
  if($("#techFilter"))$("#techFilter").onchange=e=>{state.techFilter=e.target.value;render()};
  $$("[data-cal-view]").forEach(b=>b.onclick=()=>{state.calendarView=b.dataset.calView;render()});
- $$("[data-cal-date]").forEach(el=>el.onclick=e=>{if(e.target.closest("[data-report],[data-edit],[data-del]"))return;state.date=el.dataset.calDate;state.calendarView="day";render()});
+ $$("[data-cal-date]").forEach(el=>el.onclick=e=>{if(e.target.closest("button"))return;state.date=el.dataset.calDate;state.calendarView="day";render()});
  if($("#calToday"))$("#calToday").onclick=()=>{state.date=today();render()};
  if($("#calPrev"))$("#calPrev").onclick=()=>{state.date=shiftPeriod(state.date,-1,state.calendarView);render()};
- if($("#calNext"))$("#calNext").onclick=()=>{state.date=shiftPeriod(state.date,1,state.calendarView);render()};
+ if($("#calNext"))$("#calNext").onclick=()=>{state.date=shiftPeriod(state.date,1,state.calendarView);render()}
 }
-function shiftPeriod(s,dir,view){
- const d=dateObj(s);
- if(view==="day")d.setUTCDate(d.getUTCDate()+dir);
- else if(view==="week")d.setUTCDate(d.getUTCDate()+7*dir);
- else if(view==="month")d.setUTCMonth(d.getUTCMonth()+dir);
- else d.setUTCFullYear(d.getUTCFullYear()+dir);
- return dateStr(d)
-}
+function shiftPeriod(s,dir,view){const d=dateObj(s);if(view==="day")d.setUTCDate(d.getUTCDate()+dir);else if(view==="week")d.setUTCDate(d.getUTCDate()+7*dir);else if(view==="month")d.setUTCMonth(d.getUTCMonth()+dir);else d.setUTCFullYear(d.getUTCFullYear()+dir);return dateStr(d)}
 function bindForm(){
  const f=$("#apptForm");if(!f)return;
  if($("#cancel"))$("#cancel").onclick=()=>{state.tab="planning";render()};
- const syncTech=()=>{const u=state.users.find(x=>x.email===$("#techSelect")?.value);if($("#techName"))$("#techName").value=u?.name||""};
- if($("#techSelect")){$("#techSelect").onchange=syncTech;syncTech()}
- f.onsubmit=e=>{e.preventDefault();syncTech();const d=Object.fromEntries(new FormData(f));if(!d.techEmail)return alert("Choisis un technicien.");d.client=[d.clientFirstName,d.clientLastName].filter(Boolean).join(" ").trim()||d.clientLastName||"Client";const id=f.dataset.id;if(id)state.appts=state.appts.map(a=>a.id===id?{...a,...d}:a);else state.appts.push({id:crypto.randomUUID(),...d,status:"todo",report:"",signature:"",passage:1,parentId:""});save();state.date=d.date;alert("Intervention enregistrée.");state.tab="planning";render()}
+ f.onsubmit=async e=>{
+  e.preventDefault();const d=Object.fromEntries(new FormData(f)),payload=apptPayload(d);if(!payload.technician_id)return alert("Choisis un technicien.");
+  const id=f.dataset.id;const q=id?sb.from("interventions").update(payload).eq("id",id):sb.from("interventions").insert(payload);const {error}=await q;
+  if(error)return alert("Enregistrement impossible : "+error.message);state.date=d.date;state.tab="planning";await loadData();render()
+ }
+}
+async function callManageUser(body){
+ const {data:{session}}=await sb.auth.getSession();
+ const res=await fetch(SUPABASE_URL+"/functions/v1/manage-user",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+session.access_token,"apikey":SUPABASE_KEY},body:JSON.stringify(body)});
+ const data=await res.json();if(!res.ok)throw new Error(data.error||"Erreur utilisateur");return data
 }
 function bindUsers(){
- const form=$("#userForm"); if(!form)return;
- const reset=()=>{form.reset();$("#userId").value="";$("#saveUser").textContent="Créer l’utilisateur";$("#cancelUser").style.display="none"};
+ const f=$("#userForm");if(!f)return;
+ const reset=()=>{f.reset();$("#userId").value="";$("#saveUser").textContent="Créer l’utilisateur";$("#cancelUser").style.display="none";$("#userCode").required=true};
  $("#cancelUser").onclick=reset;
- $$("[data-user-edit]").forEach(b=>b.onclick=()=>{const u=state.users.find(x=>x.id===b.dataset.userEdit);if(!u)return;$("#userId").value=u.id;$("#userName").value=u.name;$("#userRole").value=u.role;$("#userEmail").value=u.email;$("#userCode").value=u.code;$("#saveUser").textContent="Enregistrer les modifications";$("#cancelUser").style.display="inline-block";window.scrollTo({top:0,behavior:"smooth"})});
- $$("[data-user-toggle]").forEach(b=>b.onclick=()=>{const u=state.users.find(x=>x.id===b.dataset.userToggle);if(!u)return;if(u.id===state.user.id&&u.active!==false)return alert("Tu ne peux pas désactiver ton propre compte pendant que tu es connecté.");u.active=u.active===false?true:false;save();render()});
- form.onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(form));d.email=d.email.trim().toLowerCase();d.code=d.code.trim();if(d.code.length<4)return alert("Le code doit contenir au moins 4 caractères.");const duplicate=state.users.find(u=>u.email===d.email&&u.id!==d.id);if(duplicate)return alert("Un utilisateur utilise déjà cette adresse e-mail.");if(d.id){state.users=state.users.map(u=>u.id===d.id?{...u,name:d.name.trim(),role:d.role,email:d.email,code:d.code}:u)}else{state.users.push({id:crypto.randomUUID(),name:d.name.trim(),role:d.role,email:d.email,code:d.code,active:true})}save();alert(d.id?"Utilisateur modifié.":"Utilisateur créé.");render()}
+ $$("[data-user-edit]").forEach(b=>b.onclick=()=>{const u=state.users.find(x=>x.id===b.dataset.userEdit);$("#userId").value=u.id;$("#userName").value=u.name;$("#userRole").value=u.role;$("#userEmail").value=u.email;$("#userCode").value="";$("#userCode").required=false;$("#saveUser").textContent="Enregistrer";$("#cancelUser").style.display="inline-block"});
+ $$("[data-user-toggle]").forEach(b=>b.onclick=async()=>{const u=state.users.find(x=>x.id===b.dataset.userToggle);if(u.id===state.user.id)return alert("Tu ne peux pas désactiver ton propre compte.");try{await callManageUser({action:"update",id:u.id,active:!u.active});await loadData();render()}catch(e){alert(e.message)}});
+ f.onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(f));if(!d.id&&d.code.length<6)return alert("Le code doit contenir au moins 6 caractères.");try{await callManageUser(d.id?{action:"update",id:d.id,name:d.name,role:d.role,email:d.email,password:d.code||undefined}:{action:"create",name:d.name,role:d.role,email:d.email,password:d.code});await loadData();render()}catch(err){alert(err.message)}}
 }
 function bindCompany(){
  const f=$("#companyForm");if(!f)return;
- f.onsubmit=e=>{e.preventDefault();state.company=Object.fromEntries(new FormData(f));save();alert("Informations société enregistrées.");render()}
+ f.onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(f));const {error}=await sb.from("company_settings").update(d).eq("id",1);if(error)return alert(error.message);await loadData();render()}
 }
 function tech(){
- const list=calendarSource(false);
- const todayItems=list.filter(a=>a.date===state.date);
- const done=todayItems.filter(a=>a.status==="done").length;
- const remaining=todayItems.filter(a=>a.status!=="done").length;
- const followups=list.filter(a=>(a.passage||1)===2&&a.status!=="done").length;
- const body='<div class="tech-dashboard"><section class="tech-welcome"><div class="muted" style="color:#d8f3e8">ESPACE TECHNICIEN</div><h1>Bonjour '+esc(state.user.name||"Technicien")+'</h1><p>Ton planning, tes interventions et tes rapports dans un seul espace.</p><div class="tech-stats"><div class="tech-stat"><span>Aujourd’hui</span><strong>'+todayItems.length+'</strong></div><div class="tech-stat"><span>À faire</span><strong>'+remaining+'</strong></div><div class="tech-stat"><span>2e passages</span><strong>'+followups+'</strong></div></div></section><div class="card calendar-card">'+calendarControls([],false)+calendarBody(list,false)+'</div></div>';
- $("#app").innerHTML=shell("Planning technicien",body);
- $("#logout").onclick=()=>{state.user=null;render()};
- bindCalendar();
- $$("[data-report]").forEach(b=>b.onclick=()=>report(b.dataset.report));
- bindPdfButtons()
+ const list=state.appts,todayItems=list.filter(a=>a.date===state.date),remaining=todayItems.filter(a=>a.status!=="done").length,follow=list.filter(a=>(a.passage||1)===2&&a.status!=="done").length;
+ const body='<div class="tech-dashboard"><section class="tech-welcome"><div class="muted" style="color:#d8f3e8">ESPACE TECHNICIEN</div><h1>Bonjour '+esc(state.user.name||"Technicien")+'</h1><p>Ton planning et tes rapports sont synchronisés avec l’administration.</p><div class="tech-stats"><div class="tech-stat"><span>Aujourd’hui</span><strong>'+todayItems.length+'</strong></div><div class="tech-stat"><span>À faire</span><strong>'+remaining+'</strong></div><div class="tech-stat"><span>2e passages</span><strong>'+follow+'</strong></div></div></section><div class="card calendar-card">'+calendarControls([],false)+calendarBody(list,false)+'</div></div>';
+ $("#app").innerHTML=shell("Planning technicien",body);$("#logout").onclick=logout;bindCalendar();$$("[data-report]").forEach(b=>b.onclick=()=>report(b.dataset.report));bindPdfButtons()
 }
-function report(id){
- const a=state.appts.find(x=>x.id===id), passage=a.passage||1;
- const before=a.photosBefore||[], after=a.photosAfter||[];
- $("#app").innerHTML=shell("Rapport technicien",
- '<div class="report-head"><div class="muted">INTERVENTION · PASSAGE '+passage+'</div><h2 style="margin:5px 0 6px">'+esc([a.clientFirstName,a.clientLastName].filter(Boolean).join(" ")||a.client)+'</h2><div>'+esc(a.type)+' · '+esc(a.date)+' · '+esc(a.start)+'-'+esc(a.end)+'</div><div class="muted" style="margin-top:5px">'+esc(a.address)+(a.clientPhone?' · '+esc(a.clientPhone):'')+(a.clientEmail?' · '+esc(a.clientEmail):'')+'</div></div>'+
- '<div class="card"><form id="reportForm">'+
- '<div class="report-grid"><div><div class="field"><label>Montant de l’intervention TTC (€)</label><input id="amount" type="number" min="0" step="0.01" value="'+esc(a.amount||"")+'" placeholder="Ex. 350"></div><div class="field"><label>Mode de paiement</label><select id="payment"><option value="">Choisir</option>'+["Carte bancaire","Espèces","Virement","Chèque","Non payé"].map(v=>'<option '+(a.payment===v?"selected":"")+'>'+v+'</option>').join("")+'</select></div><div class="field"><label>Rapport d’intervention</label><textarea id="reportText" required placeholder="Travaux réalisés, observations, recommandations...">'+esc(a.report||"")+'</textarea></div></div>'+
- '<div><div class="photo-box"><label>Photos avant intervention</label><input id="photosBefore" type="file" accept="image/*" multiple><div class="muted">Maximum 3 photos.</div><div id="beforePreview" class="previews">'+before.map(src=>'<img src="'+src+'" alt="Photo avant">').join("")+'</div></div><div class="photo-box" style="margin-top:12px"><label>Photos après intervention</label><input id="photosAfter" type="file" accept="image/*" multiple><div class="muted">Maximum 3 photos.</div><div id="afterPreview" class="previews">'+after.map(src=>'<img src="'+src+'" alt="Photo après">').join("")+'</div></div></div></div>'+
- (passage===1?'<div class="followup"><label style="display:flex;align-items:center;gap:10px;font-size:.95rem"><input id="needSecond" type="checkbox" style="width:22px;height:22px;min-height:auto;accent-color:var(--green)"> Programmer un 2e passage</label><div id="secondFields" style="display:none;margin-top:14px"><div class="grid grid2"><div class="field"><label>Date du 2e passage</label><input id="secondDate" type="date" min="'+today()+'"></div><div class="field"><label>Heure du 2e passage</label><input id="secondTime" type="time" value="'+esc(a.start)+'"></div></div><div class="muted">Une fois le rapport validé, ce 2e passage sera ajouté automatiquement au planning du technicien.</div></div></div>':'')+
- '<div class="field"><label>Signature du client</label><canvas id="sig"></canvas><button id="clearSig" type="button" class="btn btn-soft" style="margin-top:8px">Effacer la signature</button></div>'+
- '<div class="notice" style="margin-top:14px">À la validation, le rapport est enregistré et un PDF professionnel est généré automatiquement.</div>'+
- '<div class="actions"><button class="btn btn-primary">Valider le rapport</button><button id="back" type="button" class="btn btn-soft">Retour</button></div></form></div>');
- $("#logout").onclick=()=>{state.user=null;render()};$("#back").onclick=render;setupSig(a.signature);
- let nextBefore=[...before], nextAfter=[...after];
- bindPhotoInput("#photosBefore","#beforePreview",arr=>nextBefore=arr,nextBefore);
- bindPhotoInput("#photosAfter","#afterPreview",arr=>nextAfter=arr,nextAfter);
- if($("#needSecond"))$("#needSecond").onchange=e=>{const yes=e.target.checked;$("#secondFields").style.display=yes?"block":"none";$("#secondDate").required=yes;$("#secondTime").required=yes};
+async function loadMedia(a){
+ const {data,error}=await sb.from("intervention_media").select("*").eq("intervention_id",a.id);
+ if(error)throw error;
+ a.photosBefore=[];a.photosAfter=[];a.signature="";
+ for(const m of data||[]){const {data:s}=await sb.storage.from("intervention-media").createSignedUrl(m.storage_path,3600);if(!s?.signedUrl)continue;if(m.kind==="before")a.photosBefore.push(s.signedUrl);else if(m.kind==="after")a.photosAfter.push(s.signedUrl);else a.signature=s.signedUrl}
+}
+async function report(id){
+ const a=state.appts.find(x=>x.id===id);if(!a)return;try{await loadMedia(a)}catch(e){console.error(e)}
+ const passage=a.passage||1,before=a.photosBefore||[],after=a.photosAfter||[];
+ $("#app").innerHTML=shell("Rapport technicien",'<div class="report-head"><div class="muted">INTERVENTION · PASSAGE '+passage+'</div><h2 style="margin:5px 0 6px">'+esc([a.clientFirstName,a.clientLastName].filter(Boolean).join(" ")||a.client)+'</h2><div>'+esc(a.type)+' · '+esc(a.date)+' · '+esc(a.start)+'-'+esc(a.end)+'</div><div class="muted" style="margin-top:5px">'+esc(a.address)+(a.clientPhone?' · '+esc(a.clientPhone):"")+'</div></div><div class="card"><form id="reportForm"><div class="report-grid"><div><div class="field"><label>Montant de l’intervention TTC (€)</label><input id="amount" type="number" min="0" step="0.01" value="'+esc(a.amount||"")+'"></div><div class="field"><label>Mode de paiement</label><select id="payment"><option value="">Choisir</option>'+["Carte bancaire","Espèces","Virement","Chèque","Non payé"].map(v=>'<option '+(a.payment===v?"selected":"")+'>'+v+'</option>').join("")+'</select></div><div class="field"><label>Rapport d’intervention</label><textarea id="reportText" required>'+esc(a.report||"")+'</textarea></div></div><div><div class="photo-box"><label>Photos avant</label><input id="photosBefore" type="file" accept="image/*" multiple><div id="beforePreview" class="previews">'+before.map(src=>'<img src="'+src+'">').join("")+'</div></div><div class="photo-box" style="margin-top:12px"><label>Photos après</label><input id="photosAfter" type="file" accept="image/*" multiple><div id="afterPreview" class="previews">'+after.map(src=>'<img src="'+src+'">').join("")+'</div></div></div></div>'+(passage===1?'<div class="followup"><label style="display:flex;align-items:center;gap:10px"><input id="needSecond" type="checkbox" style="width:22px;height:22px;min-height:auto"> Programmer un 2e passage</label><div id="secondFields" style="display:none;margin-top:14px"><div class="grid grid2"><div class="field"><label>Date</label><input id="secondDate" type="date" min="'+today()+'"></div><div class="field"><label>Heure</label><input id="secondTime" type="time" value="'+esc(a.start)+'"></div></div></div></div>':"")+'<div class="field"><label>Signature du client</label><canvas id="sig"></canvas><button id="clearSig" type="button" class="btn btn-soft" style="margin-top:8px">Effacer</button></div><div class="notice">Le rapport, les photos et la signature sont sauvegardés dans la V5.</div><div class="actions"><button class="btn btn-primary">Valider le rapport</button><button id="back" type="button" class="btn btn-soft">Retour</button></div></form></div>');
+ $("#logout").onclick=logout;$("#back").onclick=render;setupSig(a.signature);
+ let newBefore=null,newAfter=null;bindPhotoInput("#photosBefore","#beforePreview",x=>newBefore=x);bindPhotoInput("#photosAfter","#afterPreview",x=>newAfter=x);
+ if($("#needSecond"))$("#needSecond").onchange=e=>{$("#secondFields").style.display=e.target.checked?"block":"none";$("#secondDate").required=e.target.checked;$("#secondTime").required=e.target.checked};
  $("#reportForm").onsubmit=async e=>{
-   e.preventDefault();
-   const submitBtn=e.currentTarget.querySelector('button[type="submit"]');
-   if(submitBtn){submitBtn.disabled=true;submitBtn.textContent="Génération du PDF..."}
-   a.report=$("#reportText").value.trim();a.amount=$("#amount").value;a.payment=$("#payment").value;a.signature=$("#sig").toDataURL("image/png");a.status="done";a.photosBefore=nextBefore;a.photosAfter=nextAfter;
-   let secondVisit=null;
-   if(passage===1 && $("#needSecond")?.checked){
-     const d=$("#secondDate").value,t=$("#secondTime").value;
-     if(!d||!t){if(submitBtn){submitBtn.disabled=false;submitBtn.textContent="Valider le rapport"}return alert("Choisis la date et l’heure du deuxième passage.")}
-     secondVisit={date:d,time:t};
-     const exists=state.appts.some(x=>x.parentId===a.id&&x.passage===2);
-     if(!exists){
-       state.appts.push({id:crypto.randomUUID(),date:d,start:t,end:addHour(t),client:a.client,clientFirstName:a.clientFirstName||"",clientLastName:a.clientLastName||"",clientPhone:a.clientPhone||"",clientEmail:a.clientEmail||"",address:a.address,amount:"",type:a.type,technician:a.technician,techEmail:a.techEmail,notes:"Deuxième passage programmé par le technicien depuis le rapport du passage 1.",status:"todo",report:"",signature:"",payment:"",photosBefore:[],photosAfter:[],passage:2,parentId:a.id});
-     }
+  e.preventDefault();const btn=e.currentTarget.querySelector('button[type="submit"]');btn.disabled=true;btn.textContent="Enregistrement...";
+  const sig=$("#sig").toDataURL("image/png"),update={report:$("#reportText").value.trim(),amount:$("#amount").value||null,payment:$("#payment").value||null,status:"done"};
+  const {error}=await sb.from("interventions").update(update).eq("id",a.id);if(error){btn.disabled=false;btn.textContent="Valider le rapport";return alert(error.message)}
+  try{
+   if(newBefore)await replaceMedia(a.id,"before",newBefore);
+   if(newAfter)await replaceMedia(a.id,"after",newAfter);
+   await replaceMedia(a.id,"signature",[sig]);
+   if(passage===1&&$("#needSecond")?.checked){
+    const d=$("#secondDate").value,t=$("#secondTime").value;
+    const payload={intervention_date:d,start_time:t,end_time:addHour(t),client_first_name:a.clientFirstName,client_last_name:a.clientLastName||a.client,client_phone:a.clientPhone||null,client_email:a.clientEmail||null,address:a.address,service_type:a.type,technician_id:a.technicianId,notes:"Deuxième passage programmé depuis le rapport du passage 1.",status:"todo",passage:2,parent_id:a.id};
+    const {error:e2}=await sb.from("interventions").insert(payload);if(e2)throw e2
    }
-   try{save()}catch(err){if(submitBtn){submitBtn.disabled=false;submitBtn.textContent="Valider le rapport"}return alert("Les photos sont trop lourdes. Choisis moins de photos.")}
-   try{
-     generateReportPdf(a,secondVisit);
-     alert("Rapport enregistré et PDF généré"+(secondVisit?" · deuxième passage ajouté au planning.":"."));
-   }catch(err){
-     console.error(err);
-     alert("Rapport enregistré, mais le PDF n’a pas pu être généré. Recharge la page et réessaie.");
-   }
-   render()
- }}
-
-function bindPdfButtons(){
- $$("[data-pdf]").forEach(b=>b.onclick=e=>{
-   e.stopPropagation();
-   const a=state.appts.find(x=>x.id===b.dataset.pdf);
-   if(a)generateReportPdf(a,null)
- })
-}
-function safeFileName(v="rapport"){
- return String(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9_-]+/g,"_").replace(/^_+|_+$/g,"").slice(0,60)||"rapport"
-}
-function generateReportPdf(a,secondVisit=null){
- if(!window.jspdf?.jsPDF)throw new Error("jsPDF indisponible");
- const {jsPDF}=window.jspdf;
- const doc=new jsPDF({unit:"mm",format:"a4"});
- const pageW=210,margin=16,contentW=178;
- let y=18;
- const green=[19,138,91],dark=[16,35,27],muted=[101,117,110],light=[241,248,245];
- const ensure=(need=12)=>{if(y+need>280){doc.addPage();y=18}};
- const labelValue=(label,value)=>{
-   if(value===undefined||value===null||String(value).trim()==="")return;
-   ensure(10);
-   doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(...muted);doc.text(label.toUpperCase(),margin,y);
-   doc.setFont("helvetica","normal");doc.setFontSize(10.5);doc.setTextColor(...dark);
-   const lines=doc.splitTextToSize(String(value),112);doc.text(lines,81,y);y+=Math.max(8,lines.length*5.2)
- };
- const section=(title)=>{
-   ensure(14);y+=2;doc.setFillColor(...light);doc.roundedRect(margin,y-5,contentW,10,2,2,"F");
-   doc.setTextColor(...green);doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text(title.toUpperCase(),margin+4,y+1.5);y+=11
- };
- const fullClient=[a.clientFirstName,a.clientLastName].filter(Boolean).join(" ")||a.client||"Client";
- const company=state.company||{};
- doc.setFillColor(...green);doc.roundedRect(margin,12,contentW,36,3,3,"F");
- doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(18);doc.text((company.name||"Compagnie des Nuisibles").toUpperCase(),margin+6,23);
- doc.setFont("helvetica","normal");doc.setFontSize(8.5);
- const companyLine=[company.siret?"SIRET "+company.siret:"",company.phone||"",company.email||""].filter(Boolean).join(" · ");
- if(companyLine)doc.text(companyLine,margin+6,30,{maxWidth:145});
- const companyLine2=[company.address||"",company.website||""].filter(Boolean).join(" · ");
- if(companyLine2)doc.text(companyLine2,margin+6,36,{maxWidth:145});
- doc.setFont("helvetica","bold");doc.setFontSize(11);doc.text("RAPPORT · PASSAGE "+(a.passage||1),pageW-margin-6,39,{align:"right"});
- y=57;
-
- section("Fiche client");
- labelValue("Nom",a.clientLastName||a.client);
- labelValue("Prénom",a.clientFirstName||"");
- labelValue("Téléphone",a.clientPhone||"");
- labelValue("E-mail",a.clientEmail||"");
- labelValue("Adresse",a.address||"");
- labelValue("Informations / consignes",a.notes||"");
-
- section("Intervention");
- labelValue("Prestation",a.type||"");
- labelValue("Date / horaire",(a.date||"")+" · "+(a.start||"")+" - "+(a.end||""));
- labelValue("Technicien",a.technician||"");
- labelValue("Montant TTC",a.amount?Number(a.amount).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €":"Non renseigné");
- labelValue("Paiement",a.payment||"Non renseigné");
- if(secondVisit?.date)labelValue("2e passage",secondVisit.date+" à "+(secondVisit.time||""));
-
- section("Rapport technicien");
- ensure(20);doc.setFont("helvetica","normal");doc.setFontSize(10.5);doc.setTextColor(...dark);
- const reportLines=doc.splitTextToSize(a.report||"Aucune observation renseignée.",contentW);
- reportLines.forEach(line=>{ensure(6);doc.text(line,margin,y);y+=5.5});y+=3;
-
- const addPhotoSet=(title,photos)=>{
-   if(!photos?.length)return;
-   section(title);
-   const gap=5,w=(contentW-gap)/2,h=58;
-   for(let i=0;i<photos.length;i++){
-     if(i%2===0)ensure(h+8);
-     const x=margin+(i%2)*(w+gap);
-     try{doc.addImage(photos[i],"JPEG",x,y,w,h,undefined,"FAST")}catch(err){try{doc.addImage(photos[i],"PNG",x,y,w,h,undefined,"FAST")}catch(_){}}
-     if(i%2===1||i===photos.length-1)y+=h+6
-   }
- };
- addPhotoSet("Photos avant intervention",a.photosBefore||[]);
- addPhotoSet("Photos après intervention",a.photosAfter||[]);
- if(a.signature){
-   section("Signature client");ensure(38);
-   doc.setDrawColor(210,225,218);doc.roundedRect(margin,y,90,32,2,2,"S");
-   try{doc.addImage(a.signature,"PNG",margin+3,y+3,84,26,undefined,"FAST")}catch(_){}
-   y+=39
+   await loadData();const refreshed=state.appts.find(x=>x.id===a.id);if(refreshed){await loadMedia(refreshed);generateReportPdf(refreshed,null)}
+   alert("Rapport enregistré et synchronisé.");render()
+  }catch(err){console.error(err);alert("Rapport enregistré, mais un élément média/PDF a rencontré une erreur : "+err.message);await loadData();render()}
  }
- ensure(18);doc.setDrawColor(225,233,229);doc.line(margin,y,pageW-margin,y);y+=6;
- doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(...muted);
- doc.text("Document généré depuis l'espace d'intervention Compagnie des Nuisibles.",margin,y);
- doc.text("Rapport généré le "+new Date().toLocaleDateString("fr-FR"),pageW-margin,y,{align:"right"});
- const total=doc.getNumberOfPages();
- for(let i=1;i<=total;i++){doc.setPage(i);doc.setFontSize(8);doc.setTextColor(...muted);doc.text("Page "+i+" / "+total,pageW-margin,292,{align:"right"})}
- doc.save("Rapport_"+safeFileName(fullClient)+"_"+(a.date||today())+".pdf")
 }
-function bindPhotoInput(inputSel,previewSel,setter,current){
- const input=$(inputSel), preview=$(previewSel); if(!input)return;
- input.onchange=async()=>{
-   const files=[...input.files].slice(0,3);
-   const arr=[];
-   for(const file of files) arr.push(await compressImage(file,640,.58));
-   setter(arr); preview.innerHTML=arr.map(src=>'<img src="'+src+'" alt="Photo intervention">').join("");
- };
+async function replaceMedia(interventionId,kind,dataUrls){
+ const {data:old}=await sb.from("intervention_media").select("id,storage_path").eq("intervention_id",interventionId).eq("kind",kind);
+ if(old?.length){await sb.storage.from("intervention-media").remove(old.map(x=>x.storage_path));await sb.from("intervention_media").delete().in("id",old.map(x=>x.id))}
+ for(let i=0;i<dataUrls.length;i++){
+  if(!String(dataUrls[i]).startsWith("data:"))continue;
+  const blob=await (await fetch(dataUrls[i])).blob(),ext=blob.type.includes("png")?"png":"jpg",path=interventionId+"/"+kind+"-"+crypto.randomUUID()+"."+ext;
+  const {error:upErr}=await sb.storage.from("intervention-media").upload(path,blob,{contentType:blob.type,upsert:false});if(upErr)throw upErr;
+  const {error:dbErr}=await sb.from("intervention_media").insert({intervention_id:interventionId,kind,storage_path:path});if(dbErr)throw dbErr
+ }
 }
-function compressImage(file,maxSize=900,quality=.72){
- return new Promise((resolve,reject)=>{
-   const reader=new FileReader();
-   reader.onload=()=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w>maxSize||h>maxSize){const r=Math.min(maxSize/w,maxSize/h);w=Math.round(w*r);h=Math.round(h*r)}const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;const ctx=canvas.getContext("2d");ctx.drawImage(img,0,0,w,h);resolve(canvas.toDataURL("image/jpeg",quality))};img.onerror=reject;img.src=reader.result};
-   reader.onerror=reject;reader.readAsDataURL(file);
- });
+function bindPhotoInput(inputSel,previewSel,setter){
+ const input=$(inputSel),preview=$(previewSel);if(!input)return;
+ input.onchange=async()=>{const arr=[];for(const file of [...input.files].slice(0,3))arr.push(await compressImage(file,900,.68));setter(arr);preview.innerHTML=arr.map(src=>'<img src="'+src+'">').join("")}
 }
-function addHour(t){const [h,m]=t.split(":").map(Number);return String((h+1)%24).padStart(2,"0")+":"+String(m).padStart(2,"0")}
-function setupSig(existing){const c=$("#sig"),ctx=c.getContext("2d"),r=c.getBoundingClientRect();c.width=r.width*devicePixelRatio;c.height=r.height*devicePixelRatio;ctx.scale(devicePixelRatio,devicePixelRatio);ctx.lineWidth=2;ctx.lineCap="round";if(existing){const im=new Image();im.onload=()=>ctx.drawImage(im,0,0,r.width,r.height);im.src=existing}let d=false;const p=e=>{const q=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return[t.clientX-q.left,t.clientY-q.top]};const st=e=>{d=true;const[x,y]=p(e);ctx.beginPath();ctx.moveTo(x,y);e.preventDefault()};const mv=e=>{if(!d)return;const[x,y]=p(e);ctx.lineTo(x,y);ctx.stroke();e.preventDefault()};const sp=()=>d=false;c.addEventListener("mousedown",st);c.addEventListener("mousemove",mv);window.addEventListener("mouseup",sp);c.addEventListener("touchstart",st,{passive:false});c.addEventListener("touchmove",mv,{passive:false});c.addEventListener("touchend",sp);$("#clearSig").onclick=()=>ctx.clearRect(0,0,r.width,r.height)}
+function compressImage(file,maxSize=900,quality=.68){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w>maxSize||h>maxSize){const k=Math.min(maxSize/w,maxSize/h);w=Math.round(w*k);h=Math.round(h*k)}const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);resolve(c.toDataURL("image/jpeg",quality))};img.onerror=reject;img.src=r.result};r.onerror=reject;r.readAsDataURL(file)})}
+function addHour(t){const p=t.split(":").map(Number);return String((p[0]+1)%24).padStart(2,"0")+":"+String(p[1]).padStart(2,"0")}
+function setupSig(existing){const c=$("#sig"),ctx=c.getContext("2d"),r=c.getBoundingClientRect();c.width=r.width*devicePixelRatio;c.height=r.height*devicePixelRatio;ctx.scale(devicePixelRatio,devicePixelRatio);ctx.lineWidth=2;ctx.lineCap="round";if(existing){const im=new Image();im.onload=()=>ctx.drawImage(im,0,0,r.width,r.height);im.src=existing}let d=false;const p=e=>{const q=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return[t.clientX-q.left,t.clientY-q.top]},st=e=>{d=true;const q=p(e);ctx.beginPath();ctx.moveTo(q[0],q[1]);e.preventDefault()},mv=e=>{if(!d)return;const q=p(e);ctx.lineTo(q[0],q[1]);ctx.stroke();e.preventDefault()},sp=()=>d=false;c.addEventListener("mousedown",st);c.addEventListener("mousemove",mv);window.addEventListener("mouseup",sp);c.addEventListener("touchstart",st,{passive:false});c.addEventListener("touchmove",mv,{passive:false});c.addEventListener("touchend",sp);$("#clearSig").onclick=()=>ctx.clearRect(0,0,r.width,r.height)}
+function bindPdfButtons(){$$("[data-pdf]").forEach(b=>b.onclick=async e=>{e.stopPropagation();const a=state.appts.find(x=>x.id===b.dataset.pdf);if(!a)return;try{await loadMedia(a);generateReportPdf(a,null)}catch(err){alert("PDF impossible : "+err.message)}})}
+function safeFileName(v="rapport"){return String(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9_-]+/g,"_").replace(/^_+|_+$/g,"").slice(0,60)||"rapport"}
+function generateReportPdf(a,secondVisit=null){
+ if(!window.jspdf?.jsPDF)throw new Error("jsPDF indisponible");const {jsPDF}=window.jspdf,doc=new jsPDF({unit:"mm",format:"a4"}),pageW=210,margin=16,contentW=178;let y=18;const green=[19,138,91],dark=[16,35,27],muted=[101,117,110],light=[241,248,245];
+ const ensure=n=>{if(y+(n||12)>280){doc.addPage();y=18}},lv=(l,v)=>{if(v===undefined||v===null||String(v).trim()==="")return;ensure(10);doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(...muted);doc.text(l.toUpperCase(),margin,y);doc.setFont("helvetica","normal");doc.setFontSize(10.5);doc.setTextColor(...dark);const lines=doc.splitTextToSize(String(v),112);doc.text(lines,81,y);y+=Math.max(8,lines.length*5.2)},sec=t=>{ensure(14);y+=2;doc.setFillColor(...light);doc.roundedRect(margin,y-5,contentW,10,2,2,"F");doc.setTextColor(...green);doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text(t.toUpperCase(),margin+4,y+1.5);y+=11};
+ const company=state.company||{},full=[a.clientFirstName,a.clientLastName].filter(Boolean).join(" ")||a.client||"Client";doc.setFillColor(...green);doc.roundedRect(margin,12,contentW,36,3,3,"F");doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(18);doc.text((company.name||"Compagnie des Nuisibles").toUpperCase(),margin+6,23);doc.setFont("helvetica","normal");doc.setFontSize(8.5);const l1=[company.siret?"SIRET "+company.siret:"",company.phone||"",company.email||""].filter(Boolean).join(" · ");if(l1)doc.text(l1,margin+6,30,{maxWidth:145});const l2=[company.address||"",company.website||""].filter(Boolean).join(" · ");if(l2)doc.text(l2,margin+6,36,{maxWidth:145});doc.setFont("helvetica","bold");doc.setFontSize(11);doc.text("RAPPORT · PASSAGE "+(a.passage||1),pageW-margin-6,39,{align:"right"});y=57;
+ sec("Fiche client");lv("Nom",a.clientLastName||a.client);lv("Prénom",a.clientFirstName);lv("Téléphone",a.clientPhone);lv("E-mail",a.clientEmail);lv("Adresse",a.address);lv("Informations / consignes",a.notes);
+ sec("Intervention");lv("Prestation",a.type);lv("Date / horaire",a.date+" · "+a.start+" - "+a.end);lv("Technicien",a.technician);lv("Montant TTC",a.amount?Number(a.amount).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €":"Non renseigné");lv("Paiement",a.payment||"Non renseigné");
+ sec("Rapport technicien");doc.setFont("helvetica","normal");doc.setFontSize(10.5);doc.setTextColor(...dark);for(const line of doc.splitTextToSize(a.report||"Aucune observation renseignée.",contentW)){ensure(6);doc.text(line,margin,y);y+=5.5}y+=3;
+ const photos=(title,arr)=>{if(!arr?.length)return;sec(title);const gap=5,w=(contentW-gap)/2,h=58;arr.forEach((src,i)=>{if(i%2===0)ensure(h+8);const x=margin+(i%2)*(w+gap);try{doc.addImage(src,"JPEG",x,y,w,h,undefined,"FAST")}catch(_){try{doc.addImage(src,"PNG",x,y,w,h,undefined,"FAST")}catch(__){}}if(i%2===1||i===arr.length-1)y+=h+6})};photos("Photos avant intervention",a.photosBefore);photos("Photos après intervention",a.photosAfter);
+ if(a.signature){sec("Signature client");ensure(38);doc.setDrawColor(210,225,218);doc.roundedRect(margin,y,90,32,2,2,"S");try{doc.addImage(a.signature,"PNG",margin+3,y+3,84,26,undefined,"FAST")}catch(_){}y+=39}
+ ensure(18);doc.setDrawColor(225,233,229);doc.line(margin,y,pageW-margin,y);y+=6;doc.setFontSize(8.5);doc.setTextColor(...muted);doc.text("Document généré depuis Compagnie des Nuisibles.",margin,y);doc.text("Généré le "+new Date().toLocaleDateString("fr-FR"),pageW-margin,y,{align:"right"});const total=doc.getNumberOfPages();for(let i=1;i<=total;i++){doc.setPage(i);doc.setFontSize(8);doc.text("Page "+i+" / "+total,pageW-margin,292,{align:"right"})}doc.save("Rapport_"+safeFileName(full)+"_"+a.date+".pdf")
+}
 if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js"));
-render();
+initApp();
 </script>
 </body>
 </html>
