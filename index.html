@@ -148,6 +148,32 @@ const save=()=>{localStorage.setItem("cdn_appts",JSON.stringify(state.appts));lo
    save();
  }
 })();
+(function ensureLiveEmailTest(){
+ const testId="test-email-live-v2";
+ if(!state.appts.some(a=>a.id===testId)){
+   state.appts.push({
+     id:testId,
+     date:today(),
+     start:"17:30",
+     end:"18:30",
+     client:"TEST ENVOI MAIL",
+     address:"Levallois-Perret",
+     type:"Dératisation",
+     technician:"Technicien Démo",
+     techEmail:"technicien@demo.local",
+     notes:"Intervention créée pour tester l’envoi automatique du rapport par e-mail.",
+     status:"todo",
+     report:"",
+     signature:"",
+     payment:"",
+     photosBefore:[],
+     photosAfter:[],
+     passage:1,
+     parentId:""
+   });
+   save();
+ }
+})();
 function shell(sub,body){return '<div class="wrap"><div class="top"><div class="brandline"><div class="logo">CN</div><div><div class="brand">Compagnie des Nuisibles</div><div class="muted">'+esc(sub)+'</div></div></div><button id="logout" class="btn btn-soft">Déconnexion</button></div>'+body+'</div>'}
 function render(){if(!state.user)return login();state.user.role==="admin"?admin():tech()}
 function login(){
