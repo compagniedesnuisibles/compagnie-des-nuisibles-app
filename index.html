@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CDN Planning">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <title>Compagnie des Nuisibles</title>
+  <style>
+    :root{--bg:#f4f6f8;--card:#fff;--ink:#111827;--muted:#6b7280;--line:#e5e7eb;--accent:#111827;--ok:#166534;--warn:#92400e}
+    *{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+    button,input,textarea,select{font:inherit}.wrap{max-width:980px;margin:auto;padding:16px}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}.brand{font-weight:800}.muted{color:var(--muted);font-size:.88rem}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px;box-shadow:0 6px 24px rgba(0,0,0,.04)}
+    .nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.nav button,.btn{border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
+    .nav button{background:#fff;border:1px solid var(--line)}.nav .active,.btn-primary{background:var(--accent);color:#fff}.btn-soft{background:#fff;border:1px solid var(--line)}
+    .grid{display:grid;gap:12px}.grid2{grid-template-columns:1fr 1fr}.field{margin-bottom:12px}label{display:block;font-weight:700;font-size:.85rem;margin-bottom:6px}
+    input,textarea,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}textarea{min-height:100px;resize:vertical}
+    .appt{display:grid;grid-template-columns:72px 1fr auto;gap:12px;padding:13px;border:1px solid var(--line);border-radius:14px;margin-bottom:10px;background:#fff}
+    .time{font-weight:800}.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef2ff;font-size:.75rem;margin:6px 4px 0 0}
+    .done{background:#dcfce7;color:var(--ok)}.todo{background:#fef3c7;color:var(--warn)}.actions{display:flex;gap:8px;flex-wrap:wrap}
+    .login{min-height:100vh;display:grid;place-items:center;padding:18px}.login .card{width:min(460px,100%)}.notice{background:#eff6ff;color:#1e3a8a;padding:10px;border-radius:12px;font-size:.85rem;margin-bottom:12px}
+    canvas{width:100%;height:180px;border:1px dashed #9ca3af;border-radius:12px;background:#fff;touch-action:none}
+    @media(max-width:720px){.grid2{grid-template-columns:1fr}.appt{grid-template-columns:60px 1fr}.appt .actions{grid-column:1/-1}.wrap{padding:10px}}
+  </style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const USERS=[
+ {email:"admin@demo.local",code:"2468",role:"admin",name:"Administrateur"},
+ {email:"technicien@demo.local",code:"1234",role:"tech",name:"Technicien Démo"}
+];
+const today=()=>new Date().toISOString().slice(0,10);
+const esc=(v="")=>String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+let state={user:null,tab:"planning",date:today(),appts:JSON.parse(localStorage.getItem("cdn_appts")||"null")||[
+{id:crypto.randomUUID(),date:today(),start:"09:00",end:"10:00",client:"Client Démo",address:"Levallois-Perret",type:"Dératisation",technician:"Technicien Démo",techEmail:"technicien@demo.local",notes:"Exemple uniquement.",status:"todo",report:"",signature:""}
+]};
+const save=()=>localStorage.setItem("cdn_appts",JSON.stringify(state.appts));
+function shell(sub,body){return '<div class="wrap"><div class="top"><div><div class="brand">Compagnie des Nuisibles</div><div class="muted">'+esc(sub)+'</div></div><button id="logout" class="btn btn-soft">Déconnexion</button></div>'+body+'</div>'}
+function render(){if(!state.user)return login();state.user.role==="admin"?admin():tech()}
+function login(){
+ $("#app").innerHTML='<div class="login"><div class="card"><div class="brand">Compagnie des Nuisibles</div><p class="muted">Planning privé — V1 mobile</p><div class="notice">Démo Admin : admin@demo.local / 2468<br>Démo Technicien : technicien@demo.local / 1234</div><form id="login"><div class="field"><label>E-mail</label><input name="email" type="email" required></div><div class="field"><label>Code</label><input name="code" inputmode="numeric" required></div><button class="btn btn-primary" style="width:100%">Se connecter</button></form></div></div>';
+ $("#login").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));const u=USERS.find(x=>x.email===d.email.trim().toLowerCase()&&x.code===d.code.trim());if(!u)return alert("E-mail ou code incorrect");state.user=u;render()}
+}
+function nav(){return '<div class="nav"><button data-tab="planning" class="'+(state.tab==="planning"?"active":"")+'">Planning</button><button data-tab="new" class="'+(state.tab==="new"?"active":"")+'">Nouvelle intervention</button><button data-tab="history" class="'+(state.tab==="history"?"active":"")+'">Historique</button></div>'}
+function admin(){
+ const list=state.appts.filter(a=>a.date===state.date).sort((a,b)=>a.start.localeCompare(b.start));
+ let body=nav();
+ if(state.tab==="planning") body+=planning(list);
+ else if(state.tab==="new") body+=form();
+ else body+=history();
+ $("#app").innerHTML=shell("Espace administrateur",body);bindAdmin()
+}
+function planning(list){return '<div class="card"><div class="top"><div><h2 style="margin:0">Planning quotidien</h2><div class="muted">'+list.length+' intervention(s)</div></div><input id="day" type="date" value="'+state.date+'" style="width:auto"></div>'+ (list.length?list.map(a=>card(a,true)).join(""):'<div class="muted">Aucune intervention ce jour.</div>') +'</div>'}
+function card(a,adminMode){return '<div class="appt"><div class="time">'+esc(a.start)+'<div class="muted">'+esc(a.end)+'</div></div><div><strong>'+esc(a.client)+'</strong><div class="muted">'+esc(a.address)+'</div><span class="badge">'+esc(a.type)+'</span><span class="badge">'+esc(a.technician)+'</span><span class="badge '+(a.status==="done"?"done":"todo")+'">'+(a.status==="done"?"Terminé":"À faire")+'</span></div><div class="actions">'+(adminMode?'<button class="btn btn-soft" data-edit="'+a.id+'">Modifier</button><button class="btn btn-soft" data-del="'+a.id+'">Supprimer</button>':'<button class="btn btn-primary" data-report="'+a.id+'">'+(a.status==="done"?"Voir rapport":"Faire le rapport")+'</button>')+'</div></div>'}
+function form(id=""){const a=id?state.appts.find(x=>x.id===id):null;return '<div class="card"><h2>'+(a?"Modifier":"Nouvelle")+' intervention</h2><form id="apptForm" data-id="'+(a?.id||"")+'"><div class="grid grid2"><div><div class="field"><label>Date</label><input name="date" type="date" required value="'+(a?.date||state.date)+'"></div><div class="grid grid2"><div class="field"><label>Début</label><input name="start" type="time" required value="'+(a?.start||"09:00")+'"></div><div class="field"><label>Fin</label><input name="end" type="time" required value="'+(a?.end||"10:00")+'"></div></div><div class="field"><label>Client</label><input name="client" required value="'+esc(a?.client||"")+'"></div><div class="field"><label>Adresse</label><input name="address" required value="'+esc(a?.address||"")+'"></div></div><div><div class="field"><label>Type</label><select name="type">'+["Dératisation","Punaises de lit","Cafards","Désinfection","Guêpes/Frelons","Autre"].map(v=>'<option '+(a?.type===v?"selected":"")+'>'+v+'</option>').join("")+'</select></div><div class="field"><label>Technicien</label><input name="technician" required value="'+esc(a?.technician||"Technicien Démo")+'"></div><div class="field"><label>E-mail technicien</label><input name="techEmail" type="email" required value="'+esc(a?.techEmail||"technicien@demo.local")+'"></div><div class="field"><label>Consignes</label><textarea name="notes">'+esc(a?.notes||"")+'</textarea></div></div></div><div class="actions"><button class="btn btn-primary">Enregistrer</button><button id="cancel" type="button" class="btn btn-soft">Annuler</button></div></form></div>'}
+function history(){return '<div class="card"><h2>Historique</h2>'+[...state.appts].sort((a,b)=>(b.date+b.start).localeCompare(a.date+a.start)).map(a=>card(a,false)).join("")+'</div>'}
+function bindAdmin(){
+ $("#logout").onclick=()=>{state.user=null;render()};
+ $$("[data-tab]").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;render()});
+ if($("#day"))$("#day").onchange=e=>{state.date=e.target.value;render()};
+ $$("[data-del]").forEach(b=>b.onclick=()=>{if(confirm("Supprimer cette intervention ?")){state.appts=state.appts.filter(a=>a.id!==b.dataset.del);save();render()}});
+ $$("[data-edit]").forEach(b=>b.onclick=()=>{$("#app").innerHTML=shell("Espace administrateur",form(b.dataset.edit));$("#logout").onclick=()=>{state.user=null;render()};bindForm()});
+ bindForm()
+}
+function bindForm(){const f=$("#apptForm");if(!f)return;if($("#cancel"))$("#cancel").onclick=()=>{state.tab="planning";render()};f.onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(f));const id=f.dataset.id;if(id)state.appts=state.appts.map(a=>a.id===id?{...a,...d}:a);else state.appts.push({id:crypto.randomUUID(),...d,status:"todo",report:"",signature:""});save();state.date=d.date;alert("Intervention enregistrée.");state.tab="planning";render()}}
+function tech(){const list=state.appts.filter(a=>a.techEmail===state.user.email).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));$("#app").innerHTML=shell("Espace technicien",'<div class="card"><h2>Mes interventions</h2>'+(list.length?list.map(a=>card(a,false)).join(""):'<div class="muted">Aucune intervention assignée.</div>')+'</div>');$("#logout").onclick=()=>{state.user=null;render()};$$("[data-report]").forEach(b=>b.onclick=()=>report(b.dataset.report))}
+function report(id){const a=state.appts.find(x=>x.id===id);$("#app").innerHTML=shell("Rapport d’intervention",'<div class="card"><h2>'+esc(a.client)+' — '+esc(a.type)+'</h2><div class="muted">'+esc(a.date)+' · '+esc(a.start)+'-'+esc(a.end)+' · '+esc(a.address)+'</div><form id="reportForm" style="margin-top:14px"><div class="field"><label>Commentaire / rapport</label><textarea id="reportText" required>'+esc(a.report||"")+'</textarea></div><div class="field"><label>Signature du client</label><canvas id="sig"></canvas><button id="clearSig" type="button" class="btn btn-soft" style="margin-top:8px">Effacer</button></div><div class="actions"><button class="btn btn-primary">Valider le rapport</button><button id="back" type="button" class="btn btn-soft">Retour</button></div></form></div>');$("#logout").onclick=()=>{state.user=null;render()};$("#back").onclick=render;setupSig(a.signature);$("#reportForm").onsubmit=e=>{e.preventDefault();a.report=$("#reportText").value.trim();a.signature=$("#sig").toDataURL("image/png");a.status="done";save();alert("Rapport enregistré.");render()}}
+function setupSig(existing){const c=$("#sig"),ctx=c.getContext("2d"),r=c.getBoundingClientRect();c.width=r.width*devicePixelRatio;c.height=r.height*devicePixelRatio;ctx.scale(devicePixelRatio,devicePixelRatio);ctx.lineWidth=2;ctx.lineCap="round";if(existing){const im=new Image();im.onload=()=>ctx.drawImage(im,0,0,r.width,r.height);im.src=existing}let d=false;const p=e=>{const q=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return[t.clientX-q.left,t.clientY-q.top]};const st=e=>{d=true;const[x,y]=p(e);ctx.beginPath();ctx.moveTo(x,y);e.preventDefault()};const mv=e=>{if(!d)return;const[x,y]=p(e);ctx.lineTo(x,y);ctx.stroke();e.preventDefault()};const sp=()=>d=false;c.addEventListener("mousedown",st);c.addEventListener("mousemove",mv);window.addEventListener("mouseup",sp);c.addEventListener("touchstart",st,{passive:false});c.addEventListener("touchmove",mv,{passive:false});c.addEventListener("touchend",sp);$("#clearSig").onclick=()=>ctx.clearRect(0,0,r.width,r.height)}
+if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js"));
+render();
+</script>
+</body>
+</html>
