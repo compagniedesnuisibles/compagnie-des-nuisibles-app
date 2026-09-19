@@ -621,7 +621,7 @@ function yearCalendar(list){
  for(let m=0;m<12;m++){const first=new Date(Date.UTC(o.y,m,1)),off=(first.getUTCDay()+6)%7,start=new Date(Date.UTC(o.y,m,1-off));let cells="";for(let i=0;i<42;i++){const d=new Date(start);d.setUTCDate(start.getUTCDate()+i);const ds=dateStr(d),inM=d.getUTCMonth()===m,busy=list.some(a=>a.date===ds);cells+='<div class="mini-cell '+(!inM?"out ":"")+(busy&&inM?"busy":"")+'" data-cal-date="'+ds+'">'+d.getUTCDate()+'</div>'}h+='<div class="mini-month"><h3>'+fmtMonth(o.y,m).replace(" "+o.y,"")+'</h3><div class="mini-grid">'+cells+'</div></div>'}return h+'</div>'
 }
 function card(a,adminMode){
- const full=[a.clientFirstName,a.clientLastName].filter(Boolean).join(" ")||a.client||"Client",pdf=a.status==="done"?'<button class="btn btn-soft" data-pdf="'+a.id+'">PDF</button>':"",amt=a.amount?'<span class="badge amount-badge">'+Number(a.amount).toLocaleString("fr-FR")+' € TTC</span>':"";
+ const full=[a.clientFirstName,a.clientLastName].filter(Boolean).join(" ")||a.client||"Client",pdf=a.status==="done"?'<button class="btn btn-soft" data-pdf="'+a.id+'">Voir PDF</button>':"",amt=a.amount?'<span class="badge amount-badge">'+Number(a.amount).toLocaleString("fr-FR")+' € TTC</span>':"";
  return '<div class="appt"><div class="time"><div class="time-start">'+esc(a.start)+'</div><div class="muted time-end">'+esc(a.end)+'</div></div><div class="appt-main"><div class="appt-name">'+esc(full)+'</div><div class="appt-address">'+esc(a.address)+'</div><div class="appt-meta"><span class="badge green">'+esc(a.type)+'</span><span class="badge">Passage '+(a.passage||1)+'</span><span class="badge">'+esc(a.technician)+'</span><span class="badge '+(a.status==="done"?"done":"todo")+'">'+(a.status==="done"?"Terminé":"À faire")+'</span>'+amt+(a.payment?'<span class="badge pay-chip">'+esc(a.payment)+'</span>':"")+'</div></div><div class="actions">'+pdf+(adminMode?'<button class="btn btn-soft" data-edit="'+a.id+'">Modifier</button><button class="btn btn-danger" data-del="'+a.id+'">Supprimer</button>':'<button class="btn btn-primary" data-report="'+a.id+'">'+(a.status==="done"?"Voir le rapport":"Faire le rapport")+'</button>')+'</div></div>'
 }
 function form(id=""){
@@ -717,11 +717,23 @@ function tech(){
  const body='<div class="tech-dashboard"><section class="tech-welcome"><div class="muted" style="color:#d8f3e8">ESPACE TECHNICIEN</div><h1>Bonjour '+esc(state.user.name||"Technicien")+'</h1><p>Ton planning et tes rapports sont synchronisés avec l’administration.</p><div class="tech-stats"><div class="tech-stat"><span>Aujourd’hui</span><strong>'+todayItems.length+'</strong></div><div class="tech-stat"><span>À faire</span><strong>'+remaining+'</strong></div><div class="tech-stat"><span>2e passages</span><strong>'+follow+'</strong></div></div></section><div class="card calendar-card">'+calendarControls([],false)+calendarBody(list,false)+'</div></div>';
  $("#app").innerHTML=shell("Planning technicien",body);$("#logout").onclick=logout;bindCalendar();$$("[data-report]").forEach(b=>b.onclick=()=>report(b.dataset.report));bindPdfButtons()
 }
+async function urlToDataUrl(url){
+ const res=await fetch(url);if(!res.ok)throw new Error("Impossible de charger un média du rapport");
+ const blob=await res.blob();return await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(blob)})
+}
 async function loadMedia(a){
  const {data,error}=await sb.from("intervention_media").select("*").eq("intervention_id",a.id);
  if(error)throw error;
  a.photosBefore=[];a.photosAfter=[];a.signature="";
- for(const m of data||[]){const {data:s}=await sb.storage.from("intervention-media").createSignedUrl(m.storage_path,3600);if(!s?.signedUrl)continue;if(m.kind==="before")a.photosBefore.push(s.signedUrl);else if(m.kind==="after")a.photosAfter.push(s.signedUrl);else a.signature=s.signedUrl}
+ for(const m of data||[]){
+  const {data:s}=await sb.storage.from("intervention-media").createSignedUrl(m.storage_path,3600);
+  if(!s?.signedUrl)continue;
+  let src=s.signedUrl;
+  try{src=await urlToDataUrl(src)}catch(_){}
+  if(m.kind==="before")a.photosBefore.push(src);
+  else if(m.kind==="after")a.photosAfter.push(src);
+  else a.signature=src
+ }
 }
 async function report(id){
  const a=state.appts.find(x=>x.id===id);if(!a)return;try{await loadMedia(a)}catch(e){console.error(e)}
@@ -782,9 +794,18 @@ function bindPhotoInput(inputSel,previewSel,setter){
 function compressImage(file,maxSize=900,quality=.68){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w>maxSize||h>maxSize){const k=Math.min(maxSize/w,maxSize/h);w=Math.round(w*k);h=Math.round(h*k)}const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);resolve(c.toDataURL("image/jpeg",quality))};img.onerror=reject;img.src=r.result};r.onerror=reject;r.readAsDataURL(file)})}
 function addHour(t){const p=t.split(":").map(Number);return String((p[0]+1)%24).padStart(2,"0")+":"+String(p[1]).padStart(2,"0")}
 function setupSig(existing){const c=$("#sig"),ctx=c.getContext("2d"),r=c.getBoundingClientRect();c.width=r.width*devicePixelRatio;c.height=r.height*devicePixelRatio;ctx.scale(devicePixelRatio,devicePixelRatio);ctx.lineWidth=2;ctx.lineCap="round";if(existing){const im=new Image();im.onload=()=>ctx.drawImage(im,0,0,r.width,r.height);im.src=existing}let d=false;const p=e=>{const q=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return[t.clientX-q.left,t.clientY-q.top]},st=e=>{d=true;const q=p(e);ctx.beginPath();ctx.moveTo(q[0],q[1]);e.preventDefault()},mv=e=>{if(!d)return;const q=p(e);ctx.lineTo(q[0],q[1]);ctx.stroke();e.preventDefault()},sp=()=>d=false;c.addEventListener("mousedown",st);c.addEventListener("mousemove",mv);window.addEventListener("mouseup",sp);c.addEventListener("touchstart",st,{passive:false});c.addEventListener("touchmove",mv,{passive:false});c.addEventListener("touchend",sp);$("#clearSig").onclick=()=>ctx.clearRect(0,0,r.width,r.height)}
-function bindPdfButtons(){$$("[data-pdf]").forEach(b=>b.onclick=async e=>{e.stopPropagation();const a=state.appts.find(x=>x.id===b.dataset.pdf);if(!a)return;try{await loadMedia(a);generateReportPdf(a,null)}catch(err){alert("PDF impossible : "+err.message)}})}
+function bindPdfButtons(){$("[data-pdf]").forEach(b=>b.onclick=async e=>{
+ e.stopPropagation();const a=state.appts.find(x=>x.id===b.dataset.pdf);if(!a)return;
+ const win=window.open("","_blank");
+ try{
+  if(win){win.document.write('<div style="font-family:Arial;padding:30px">Chargement du rapport PDF...</div>')}
+  await loadMedia(a);
+  const url=generateReportPdf(a,null,"view");
+  if(win)win.location.href=url;else location.href=url
+ }catch(err){if(win)win.close();alert("PDF impossible : "+err.message)}
+})}
 function safeFileName(v="rapport"){return String(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9_-]+/g,"_").replace(/^_+|_+$/g,"").slice(0,60)||"rapport"}
-function generateReportPdf(a,secondVisit=null){
+function generateReportPdf(a,secondVisit=null,mode="download"){
  if(!window.jspdf?.jsPDF)throw new Error("jsPDF indisponible");const {jsPDF}=window.jspdf,doc=new jsPDF({unit:"mm",format:"a4"}),pageW=210,margin=16,contentW=178;let y=18;const green=[19,138,91],dark=[16,35,27],muted=[101,117,110],light=[241,248,245];
  const ensure=n=>{if(y+(n||12)>280){doc.addPage();y=18}},lv=(l,v)=>{if(v===undefined||v===null||String(v).trim()==="")return;ensure(10);doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(...muted);doc.text(l.toUpperCase(),margin,y);doc.setFont("helvetica","normal");doc.setFontSize(10.5);doc.setTextColor(...dark);const lines=doc.splitTextToSize(String(v),112);doc.text(lines,81,y);y+=Math.max(8,lines.length*5.2)},sec=t=>{ensure(14);y+=2;doc.setFillColor(...light);doc.roundedRect(margin,y-5,contentW,10,2,2,"F");doc.setTextColor(...green);doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text(t.toUpperCase(),margin+4,y+1.5);y+=11};
  const company=state.company||{},full=[a.clientFirstName,a.clientLastName].filter(Boolean).join(" ")||a.client||"Client";doc.setFillColor(...green);doc.roundedRect(margin,12,contentW,36,3,3,"F");doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(18);doc.text((company.name||"Compagnie des Nuisibles").toUpperCase(),margin+6,23);doc.setFont("helvetica","normal");doc.setFontSize(8.5);const l1=[company.siret?"SIRET "+company.siret:"",company.phone||"",company.email||""].filter(Boolean).join(" · ");if(l1)doc.text(l1,margin+6,30,{maxWidth:145});const l2=[company.address||"",company.website||""].filter(Boolean).join(" · ");if(l2)doc.text(l2,margin+6,36,{maxWidth:145});doc.setFont("helvetica","bold");doc.setFontSize(11);doc.text("RAPPORT · PASSAGE "+(a.passage||1),pageW-margin-6,39,{align:"right"});y=57;
@@ -793,7 +814,7 @@ function generateReportPdf(a,secondVisit=null){
  sec("Rapport technicien");doc.setFont("helvetica","normal");doc.setFontSize(10.5);doc.setTextColor(...dark);for(const line of doc.splitTextToSize(a.report||"Aucune observation renseignée.",contentW)){ensure(6);doc.text(line,margin,y);y+=5.5}y+=3;
  const photos=(title,arr)=>{if(!arr?.length)return;sec(title);const gap=5,w=(contentW-gap)/2,h=58;arr.forEach((src,i)=>{if(i%2===0)ensure(h+8);const x=margin+(i%2)*(w+gap);try{doc.addImage(src,"JPEG",x,y,w,h,undefined,"FAST")}catch(_){try{doc.addImage(src,"PNG",x,y,w,h,undefined,"FAST")}catch(__){}}if(i%2===1||i===arr.length-1)y+=h+6})};photos("Photos avant intervention",a.photosBefore);photos("Photos après intervention",a.photosAfter);
  if(a.signature){sec("Signature client");ensure(38);doc.setDrawColor(210,225,218);doc.roundedRect(margin,y,90,32,2,2,"S");try{doc.addImage(a.signature,"PNG",margin+3,y+3,84,26,undefined,"FAST")}catch(_){}y+=39}
- ensure(18);doc.setDrawColor(225,233,229);doc.line(margin,y,pageW-margin,y);y+=6;doc.setFontSize(8.5);doc.setTextColor(...muted);doc.text("Document généré depuis Compagnie des Nuisibles.",margin,y);doc.text("Généré le "+new Date().toLocaleDateString("fr-FR"),pageW-margin,y,{align:"right"});const total=doc.getNumberOfPages();for(let i=1;i<=total;i++){doc.setPage(i);doc.setFontSize(8);doc.text("Page "+i+" / "+total,pageW-margin,292,{align:"right"})}doc.save("Rapport_"+safeFileName(full)+"_"+a.date+".pdf")
+ ensure(18);doc.setDrawColor(225,233,229);doc.line(margin,y,pageW-margin,y);y+=6;doc.setFontSize(8.5);doc.setTextColor(...muted);doc.text("Document généré depuis Compagnie des Nuisibles.",margin,y);doc.text("Généré le "+new Date().toLocaleDateString("fr-FR"),pageW-margin,y,{align:"right"});const total=doc.getNumberOfPages();for(let i=1;i<=total;i++){doc.setPage(i);doc.setFontSize(8);doc.text("Page "+i+" / "+total,pageW-margin,292,{align:"right"})}const filename="Rapport_"+safeFileName(full)+"_"+a.date+".pdf";if(mode==="view"){const blob=doc.output("blob");return URL.createObjectURL(blob)}doc.save(filename);return null
 }
 if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js"));
 initApp();
