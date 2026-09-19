@@ -135,7 +135,7 @@ function report(id){
  '<div class="card"><form id="reportForm">'+
  '<div class="report-grid"><div><div class="field"><label>Mode de paiement</label><select id="payment"><option value="">Choisir</option>'+["Carte bancaire","Espèces","Virement","Chèque","Non payé"].map(v=>'<option '+(a.payment===v?"selected":"")+'>'+v+'</option>').join("")+'</select></div><div class="field"><label>Rapport d’intervention</label><textarea id="reportText" required placeholder="Travaux réalisés, observations, recommandations...">'+esc(a.report||"")+'</textarea></div></div>'+
  '<div><div class="photo-box"><label>Photos avant intervention</label><input id="photosBefore" type="file" accept="image/*" multiple><div class="muted">Maximum 3 photos.</div><div id="beforePreview" class="previews">'+before.map(src=>'<img src="'+src+'" alt="Photo avant">').join("")+'</div></div><div class="photo-box" style="margin-top:12px"><label>Photos après intervention</label><input id="photosAfter" type="file" accept="image/*" multiple><div class="muted">Maximum 3 photos.</div><div id="afterPreview" class="previews">'+after.map(src=>'<img src="'+src+'" alt="Photo après">').join("")+'</div></div></div></div>'+
- (passage===1?'<div class="followup"><div class="field"><label>Deuxième passage</label><select id="needSecond"><option value="no">Aucun 2e passage</option><option value="yes">Programmer un 2e passage</option></select></div><div id="secondFields" style="display:none"><div class="grid grid2"><div class="field"><label>Date du 2e passage</label><input id="secondDate" type="date" min="'+today()+'"></div><div class="field"><label>Heure du 2e passage</label><input id="secondTime" type="time" value="'+esc(a.start)+'"></div></div><div class="muted">Le rendez-vous sera automatiquement ajouté au planning de ce technicien.</div></div></div>':'')+
+ (passage===1?'<div class="followup"><label style="display:flex;align-items:center;gap:10px;font-size:.95rem"><input id="needSecond" type="checkbox" style="width:22px;height:22px;min-height:auto;accent-color:var(--green)"> Programmer un 2e passage</label><div id="secondFields" style="display:none;margin-top:14px"><div class="grid grid2"><div class="field"><label>Date du 2e passage</label><input id="secondDate" type="date" min="'+today()+'"></div><div class="field"><label>Heure du 2e passage</label><input id="secondTime" type="time" value="'+esc(a.start)+'"></div></div><div class="muted">Une fois le rapport validé, ce 2e passage sera ajouté automatiquement au planning du technicien.</div></div></div>':'')+
  '<div class="field"><label>Signature du client</label><canvas id="sig"></canvas><button id="clearSig" type="button" class="btn btn-soft" style="margin-top:8px">Effacer la signature</button></div>'+
  '<div class="notice" style="margin-top:14px">À la validation, le rapport est enregistré. L’envoi automatique par e-mail sera activé dès que le backend sécurisé est connecté.</div>'+
  '<div class="actions"><button class="btn btn-primary">Valider le rapport</button><button id="back" type="button" class="btn btn-soft">Retour</button></div></form></div>');
@@ -143,11 +143,11 @@ function report(id){
  let nextBefore=[...before], nextAfter=[...after];
  bindPhotoInput("#photosBefore","#beforePreview",arr=>nextBefore=arr,nextBefore);
  bindPhotoInput("#photosAfter","#afterPreview",arr=>nextAfter=arr,nextAfter);
- if($("#needSecond"))$("#needSecond").onchange=e=>{const yes=e.target.value==="yes";$("#secondFields").style.display=yes?"block":"none";$("#secondDate").required=yes;$("#secondTime").required=yes};
+ if($("#needSecond"))$("#needSecond").onchange=e=>{const yes=e.target.checked;$("#secondFields").style.display=yes?"block":"none";$("#secondDate").required=yes;$("#secondTime").required=yes};
  $("#reportForm").onsubmit=e=>{
    e.preventDefault();
    a.report=$("#reportText").value.trim();a.payment=$("#payment").value;a.signature=$("#sig").toDataURL("image/png");a.status="done";a.photosBefore=nextBefore;a.photosAfter=nextAfter;
-   if(passage===1 && $("#needSecond")?.value==="yes"){
+   if(passage===1 && $("#needSecond")?.checked){
      const d=$("#secondDate").value,t=$("#secondTime").value;
      if(!d||!t)return alert("Choisis la date et l’heure du deuxième passage.");
      const exists=state.appts.some(x=>x.parentId===a.id&&x.passage===2);
@@ -156,7 +156,7 @@ function report(id){
      }
    }
    try{save()}catch(err){alert("Les photos sont trop lourdes pour cette version de démonstration. Choisis moins de photos.");return}
-   alert("Rapport enregistré"+(passage===1&&$("#needSecond")?.value==="yes"?" et deuxième passage ajouté au planning.":"."));
+   alert("Rapport enregistré"+(passage===1&&$("#needSecond")?.checked?" et deuxième passage ajouté au planning.":"."));
    render()
  }
 }
