@@ -490,7 +490,7 @@ let realtimeChannel=null;
 let state={
  user:null,tab:"planning",date:today(),calendarView:"day",techFilter:"all",
  users:[],appts:[],
- company:{name:"Compagnie des Nuisibles",siret:"919 530 949 00016",address:"14 rue de Thionville, 75019 Paris",phone:"07 59 67 55 26",email:"compagniedesnuisibles@gmail.com",website:"compagniedesnuisibles.com"},lastCredentials:null
+ company:{name:"Compagnie des Nuisibles",siret:"919 530 949 00016",address:"14 rue de Thionville, 75019 Paris",phone:"07 59 67 55 26",email:"compagniedesnuisibles@gmail.com",website:"compagniedesnuisibles.com"},lastCredentials:null,reportSaving:false
 };
 
 function dbToAppt(r){
@@ -533,7 +533,7 @@ async function loadData(){
 function startRealtime(){
  if(realtimeChannel)sb.removeChannel(realtimeChannel);
  let timer=null;
- const refresh=()=>{clearTimeout(timer);timer=setTimeout(async()=>{try{await loadData();render()}catch(e){console.error(e)}},250)};
+ const refresh=()=>{clearTimeout(timer);timer=setTimeout(async()=>{try{await loadData();if(!state.reportSaving)render()}catch(e){console.error(e)}},250)};
  realtimeChannel=sb.channel("cdn-v5-live")
   .on("postgres_changes",{event:"*",schema:"public",table:"interventions"},refresh)
   .on("postgres_changes",{event:"*",schema:"public",table:"profiles"},refresh)
@@ -746,37 +746,52 @@ async function report(id){
   e.preventDefault();
   const btn=e.currentTarget.querySelector('button[type="submit"]');
   const reportText=$("#reportText").value.trim(),amount=$("#amount").value||"",payment=$("#payment").value||"";
+  if(!reportText)return alert("Renseigne le rapport d’intervention.");
   const sig=$("#sig").toDataURL("image/png");
-  const pdfSnapshot={...a,report:reportText,amount,payment,signature:sig,photosBefore:newBefore||a.photosBefore||[],photosAfter:newAfter||a.photosAfter||[]};
+  const pdfWin=window.open("","_blank");
+  if(pdfWin)pdfWin.document.write('<div style="font-family:Arial;padding:30px">Validation du rapport et préparation du PDF...</div>');
+  state.reportSaving=true;
+  btn.disabled=true;btn.textContent="Validation...";
   try{
-   generateReportPdf(pdfSnapshot,null);
-  }catch(pdfErr){
-   console.error("PDF immédiat",pdfErr);
-   return alert("Impossible de générer le PDF : "+pdfErr.message);
-  }
-  btn.disabled=true;btn.textContent="Enregistrement...";
-  const update={report:reportText,amount:amount||null,payment:payment||null,status:"done"};
-  try{
-   const {error}=await sb.from("interventions").update(update).eq("id",a.id);
+   const update={report:reportText,amount:amount||null,payment:payment||null,status:"done"};
+   const {data:updated,error}=await sb.from("interventions").update(update).eq("id",a.id).select("id,status").single();
    if(error)throw error;
+   if(!updated||updated.status!=="done")throw new Error("Le rapport n’a pas pu être validé.");
+
    if(newBefore)await replaceMedia(a.id,"before",newBefore);
    if(newAfter)await replaceMedia(a.id,"after",newAfter);
    await replaceMedia(a.id,"signature",[sig]);
+
    if(passage===1&&$("#needSecond")?.checked){
     const d=$("#secondDate").value,t=$("#secondTime").value;
     const payload={intervention_date:d,start_time:t,end_time:addHour(t),client_first_name:a.clientFirstName,client_last_name:a.clientLastName||a.client,client_phone:a.clientPhone||null,client_email:a.clientEmail||null,address:a.address,service_type:a.type,technician_id:a.technicianId,notes:"Deuxième passage programmé depuis le rapport du passage 1.",status:"todo",passage:2,parent_id:a.id};
     const {error:e2}=await sb.from("interventions").insert(payload);if(e2)throw e2
    }
+
    await loadData();
-   alert("Rapport enregistré et synchronisé. Le PDF a été généré.");
+   const refreshed=state.appts.find(x=>x.id===a.id);
+   if(refreshed){
+    try{await loadMedia(refreshed)}catch(_){}
+    try{
+     const pdfUrl=generateReportPdf(refreshed,null,"view");
+     if(pdfWin)pdfWin.location.href=pdfUrl;else location.href=pdfUrl
+    }catch(pdfErr){
+     console.error("PDF après validation",pdfErr);
+     if(pdfWin)pdfWin.close();
+    }
+   }else if(pdfWin)pdfWin.close();
+
+   state.reportSaving=false;
+   alert("Rapport validé et synchronisé.");
    render()
   }catch(err){
+   state.reportSaving=false;
+   if(pdfWin)pdfWin.close();
    console.error(err);
    btn.disabled=false;btn.textContent="Valider le rapport";
-   alert("Le PDF a été généré, mais la synchronisation du rapport a rencontré une erreur : "+err.message);
+   alert("Validation impossible : "+err.message);
   }
- }
-}
+ }}
 async function replaceMedia(interventionId,kind,dataUrls){
  const {data:old}=await sb.from("intervention_media").select("id,storage_path").eq("intervention_id",interventionId).eq("kind",kind);
  if(old?.length){await sb.storage.from("intervention-media").remove(old.map(x=>x.storage_path));await sb.from("intervention_media").delete().in("id",old.map(x=>x.id))}
