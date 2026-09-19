@@ -13,3 +13,6 @@ Fonctions prévues :
 - historique des interventions.
 
 > Aucun secret ni donnée client réelle ne doit être commité dans ce dépôt.
+
+
+Déploiement Pages activé.
