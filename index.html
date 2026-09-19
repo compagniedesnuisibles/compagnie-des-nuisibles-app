@@ -748,8 +748,6 @@ async function report(id){
   const reportText=$("#reportText").value.trim(),amount=$("#amount").value||"",payment=$("#payment").value||"";
   if(!reportText)return alert("Renseigne le rapport d’intervention.");
   const sig=$("#sig").toDataURL("image/png");
-  const pdfWin=window.open("","_blank");
-  if(pdfWin)pdfWin.document.write('<div style="font-family:Arial;padding:30px">Validation du rapport et préparation du PDF...</div>');
   state.reportSaving=true;
   btn.disabled=true;btn.textContent="Validation...";
   try{
@@ -769,29 +767,18 @@ async function report(id){
    }
 
    await loadData();
-   const refreshed=state.appts.find(x=>x.id===a.id);
-   if(refreshed){
-    try{await loadMedia(refreshed)}catch(_){}
-    try{
-     const pdfUrl=generateReportPdf(refreshed,null,"view");
-     if(pdfWin)pdfWin.location.href=pdfUrl;else location.href=pdfUrl
-    }catch(pdfErr){
-     console.error("PDF après validation",pdfErr);
-     if(pdfWin)pdfWin.close();
-    }
-   }else if(pdfWin)pdfWin.close();
-
    state.reportSaving=false;
-   alert("Rapport validé et synchronisé.");
+   alert("Rapport validé. La fiche client est terminée.");
    render()
   }catch(err){
    state.reportSaving=false;
-   if(pdfWin)pdfWin.close();
    console.error(err);
    btn.disabled=false;btn.textContent="Valider le rapport";
    alert("Validation impossible : "+err.message);
   }
- }}
+ }
+}
+
 async function replaceMedia(interventionId,kind,dataUrls){
  const {data:old}=await sb.from("intervention_media").select("id,storage_path").eq("intervention_id",interventionId).eq("kind",kind);
  if(old?.length){await sb.storage.from("intervention-media").remove(old.map(x=>x.storage_path));await sb.from("intervention_media").delete().in("id",old.map(x=>x.id))}
