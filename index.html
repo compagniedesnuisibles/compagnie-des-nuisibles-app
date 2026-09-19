@@ -117,12 +117,13 @@ let state={
  date:today(),
  calendarView:"day",
  techFilter:"all",
+ company:JSON.parse(localStorage.getItem("cdn_company")||"null")||{name:"Compagnie des Nuisibles",siret:"",address:"",phone:"07 59 67 55 26",email:"compagniedesnuisibles@gmail.com",website:"compagniedesnuisibles.com"},
  users:JSON.parse(localStorage.getItem("cdn_users")||"null")||DEFAULT_USERS,
  appts:JSON.parse(localStorage.getItem("cdn_appts")||"null")||[
   {id:crypto.randomUUID(),date:today(),start:"09:00",end:"10:00",client:"Client Démo",address:"Levallois-Perret",type:"Dératisation",technician:"Technicien Démo",techEmail:"technicien@demo.local",notes:"Exemple uniquement.",status:"todo",report:"",signature:"",passage:1,parentId:""}
  ]
 };
-const save=()=>{localStorage.setItem("cdn_appts",JSON.stringify(state.appts));localStorage.setItem("cdn_users",JSON.stringify(state.users))};
+const save=()=>{localStorage.setItem("cdn_appts",JSON.stringify(state.appts));localStorage.setItem("cdn_users",JSON.stringify(state.users));localStorage.setItem("cdn_company",JSON.stringify(state.company))};
 (function ensureTestIntervention(){
  const testId="test-mail-intervention-2026-09-20";
  if(!state.appts.some(a=>a.id===testId)){
@@ -181,14 +182,15 @@ function login(){
  $("#app").innerHTML='<div class="login"><div class="card"><div class="login-head"><div class="logo">CN</div><div><div class="brand" style="font-size:1.15rem">Compagnie des Nuisibles</div><div class="muted">Espace interventions</div></div></div><div class="notice">Version de démonstration sécurisée sans données clients réelles.</div><form id="login"><div class="field"><label>E-mail professionnel</label><input name="email" type="email" required placeholder="votre@email.fr"></div><div class="field"><label>Code d’accès</label><input name="code" inputmode="numeric" required placeholder="••••"></div><button class="btn btn-primary" style="width:100%">Se connecter</button></form><div class="muted" style="margin-top:14px">Admin démo : admin@demo.local / 2468 · Technicien : technicien@demo.local / 1234</div></div></div>';
  $("#login").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));const u=state.users.find(x=>x.active!==false&&x.email===d.email.trim().toLowerCase()&&x.code===d.code.trim());if(!u)return alert("E-mail, code incorrect ou compte désactivé");state.user=u;render()}
 }
-function nav(){return '<div class="nav"><button data-tab="planning" class="'+(state.tab==="planning"?"active":"")+'">Planning</button><button data-tab="new" class="'+(state.tab==="new"?"active":"")+'">Nouvelle intervention</button><button data-tab="history" class="'+(state.tab==="history"?"active":"")+'">Historique</button><button data-tab="users" class="'+(state.tab==="users"?"active":"")+'">Utilisateurs</button></div>'}
+function nav(){return '<div class="nav"><button data-tab="planning" class="'+(state.tab==="planning"?"active":"")+'">Planning</button><button data-tab="new" class="'+(state.tab==="new"?"active":"")+'">Nouvelle intervention</button><button data-tab="history" class="'+(state.tab==="history"?"active":"")+'">Historique</button><button data-tab="users" class="'+(state.tab==="users"?"active":"")+'">Utilisateurs</button><button data-tab="company" class="'+(state.tab==="company"?"active":"")+'">Société</button></div>'}
 function admin(){
  const list=state.appts.filter(a=>a.date===state.date).sort((a,b)=>a.start.localeCompare(b.start));
  let body=nav();
  if(state.tab==="planning") body+=planning(list);
  else if(state.tab==="new") body+=form();
  else if(state.tab==="history") body+=history();
- else body+=usersView();
+ else if(state.tab==="users") body+=usersView();
+ else body+=companyView();
  $("#app").innerHTML=shell("Espace administrateur",body);bindAdmin()
 }
 function planning(list){
@@ -265,7 +267,7 @@ function form(id=""){
  '<div class="grid grid2"><div class="field"><label>Début</label><input name="start" type="time" required value="'+(a?.start||"09:00")+'"></div><div class="field"><label>Fin</label><input name="end" type="time" required value="'+(a?.end||"10:00")+'"></div></div>'+
  '<div class="grid grid2"><div class="field"><label>Prénom client</label><input name="clientFirstName" value="'+esc(first)+'" placeholder="Prénom"></div><div class="field"><label>Nom client</label><input name="clientLastName" required value="'+esc(last)+'" placeholder="Nom"></div></div>'+
  '<div class="grid grid2"><div class="field"><label>Téléphone</label><input name="clientPhone" type="tel" value="'+esc(a?.clientPhone||"")+'" placeholder="06..."></div><div class="field"><label>E-mail client</label><input name="clientEmail" type="email" value="'+esc(a?.clientEmail||"")+'" placeholder="client@email.fr"></div></div>'+
- '<div class="field"><label>Adresse complète</label><input name="address" required value="'+esc(a?.address||"")+'" placeholder="N°, rue, code postal, ville"></div>'+
+ '<div class="field"><label>Adresse complète</label><input name="address" required value="'+esc(a?.address||"")+'" placeholder="N°, rue, code postal, ville"></div><div class="field"><label>Montant de l’intervention TTC (€)</label><input name="amount" type="number" min="0" step="0.01" value="'+esc(a?.amount||"")+'" placeholder="Ex. 350"></div>'+
  '</div><div>'+
  '<div class="field"><label>Type d’intervention</label><select name="type">'+["Dératisation","Punaises de lit","Cafards","Désinfection","Guêpes/Frelons","Autre"].map(v=>'<option '+(a?.type===v?"selected":"")+'>'+v+'</option>').join("")+'</select></div>'+
  '<div class="field"><label>Technicien</label><select name="techEmail" id="techSelect" required><option value="">Choisir un technicien</option>'+techs.map(u=>'<option value="'+esc(u.email)+'" '+(selectedEmail===u.email?"selected":"")+'>'+esc(u.name)+' — '+esc(u.email)+'</option>').join("")+'</select></div>'+
@@ -274,7 +276,7 @@ function form(id=""){
  '</div></div><div class="actions"><button class="btn btn-primary">Enregistrer</button><button id="cancel" type="button" class="btn btn-soft">Annuler</button></div></form></div>'
 }
 function history(){return '<div class="card"><h2>Historique</h2>'+[...state.appts].sort((a,b)=>(b.date+b.start).localeCompare(a.date+a.start)).map(a=>card(a,false)).join("")+'</div>'}
-function usersView(){
+function companyView(){\n const x=state.company||{};\n return '<div class="card"><div class="section-title"><div><h2>Informations société</h2><div class="muted">Ces informations apparaîtront automatiquement sur tous les rapports PDF.</div></div></div><form id="companyForm"><div class="grid grid2"><div><div class="field"><label>Raison sociale / nom commercial</label><input name="name" required value="'+esc(x.name||"")+'"></div><div class="field"><label>SIRET</label><input name="siret" value="'+esc(x.siret||"")+'" placeholder="14 chiffres"></div><div class="field"><label>Adresse société</label><input name="address" value="'+esc(x.address||"")+'" placeholder="Adresse complète"></div></div><div><div class="field"><label>Téléphone</label><input name="phone" value="'+esc(x.phone||"")+'"></div><div class="field"><label>E-mail</label><input name="email" type="email" value="'+esc(x.email||"")+'"></div><div class="field"><label>Site internet</label><input name="website" value="'+esc(x.website||"")+'"></div></div></div><button class="btn btn-primary">Enregistrer les informations société</button></form></div>'\n}\nfunction usersView(){
  const admins=state.users.filter(u=>u.role==="admin"), techs=state.users.filter(u=>u.role==="tech");
  const userCard=u=>'<div class="appt" style="grid-template-columns:52px minmax(0,1fr) auto"><div class="logo" style="width:44px;height:44px;border-radius:12px">'+esc((u.name||"?").slice(0,2).toUpperCase())+'</div><div><strong>'+esc(u.name)+'</strong><div class="muted">'+esc(u.email)+'</div><div class="statusline"><span class="badge '+(u.role==="admin"?"green":"")+'">'+(u.role==="admin"?"Administrateur":"Technicien")+'</span><span class="badge '+(u.active!==false?"done":"")+'">'+(u.active!==false?"Actif":"Désactivé")+'</span></div></div><div class="actions"><button class="btn btn-soft" data-user-edit="'+u.id+'">Modifier</button><button class="btn '+(u.active!==false?"btn-danger":"btn-soft")+'" data-user-toggle="'+u.id+'">'+(u.active!==false?"Désactiver":"Réactiver")+'</button></div></div>';
  return '<div class="grid grid2"><div class="card"><div class="section-title"><div><h2>Utilisateurs</h2><div class="muted">Crée les comptes administrateurs et techniciens.</div></div></div><form id="userForm"><input type="hidden" name="id" id="userId"><div class="field"><label>Nom</label><input name="name" id="userName" required placeholder="Nom du collaborateur"></div><div class="field"><label>Rôle</label><select name="role" id="userRole"><option value="tech">Technicien</option><option value="admin">Administrateur</option></select></div><div class="field"><label>E-mail de connexion</label><input name="email" id="userEmail" type="email" required placeholder="prenom@entreprise.fr"></div><div class="field"><label>Code de connexion</label><input name="code" id="userCode" inputmode="numeric" minlength="4" required placeholder="4 chiffres minimum"></div><div class="actions"><button class="btn btn-primary" id="saveUser">Créer l’utilisateur</button><button type="button" class="btn btn-soft" id="cancelUser" style="display:none">Annuler</button></div></form></div><div><div class="card"><h2 style="margin-top:0">Techniciens</h2>'+(techs.length?techs.map(userCard).join(""):'<div class="muted">Aucun technicien.</div>')+'</div><div class="card"><h2 style="margin-top:0">Administrateurs</h2>'+(admins.length?admins.map(userCard).join(""):'<div class="muted">Aucun administrateur.</div>')+'</div></div></div>'
@@ -287,7 +289,8 @@ function bindAdmin(){
  $$("[data-edit]").forEach(b=>b.onclick=()=>{$("#app").innerHTML=shell("Espace administrateur",form(b.dataset.edit));$("#logout").onclick=()=>{state.user=null;render()};bindForm()});
  bindForm();
  bindPdfButtons();
- bindUsers()
+ bindUsers();
+ bindCompany()
 }
 function bindCalendar(){
  if($("#calDate"))$("#calDate").onchange=e=>{state.date=e.target.value;render()};
@@ -321,7 +324,7 @@ function bindUsers(){
  $$("[data-user-toggle]").forEach(b=>b.onclick=()=>{const u=state.users.find(x=>x.id===b.dataset.userToggle);if(!u)return;if(u.id===state.user.id&&u.active!==false)return alert("Tu ne peux pas désactiver ton propre compte pendant que tu es connecté.");u.active=u.active===false?true:false;save();render()});
  form.onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(form));d.email=d.email.trim().toLowerCase();d.code=d.code.trim();if(d.code.length<4)return alert("Le code doit contenir au moins 4 caractères.");const duplicate=state.users.find(u=>u.email===d.email&&u.id!==d.id);if(duplicate)return alert("Un utilisateur utilise déjà cette adresse e-mail.");if(d.id){state.users=state.users.map(u=>u.id===d.id?{...u,name:d.name.trim(),role:d.role,email:d.email,code:d.code}:u)}else{state.users.push({id:crypto.randomUUID(),name:d.name.trim(),role:d.role,email:d.email,code:d.code,active:true})}save();alert(d.id?"Utilisateur modifié.":"Utilisateur créé.");render()}
 }
-function tech(){
+function bindCompany(){\n const f=$("#companyForm");if(!f)return;\n f.onsubmit=e=>{e.preventDefault();state.company=Object.fromEntries(new FormData(f));save();alert("Informations société enregistrées.");render()}\n}\nfunction tech(){
  const list=calendarSource(false);
  $("#app").innerHTML=shell("Espace technicien",'<div class="card">'+calendarControls([],false)+calendarBody(list,false)+'</div>');
  $("#logout").onclick=()=>{state.user=null;render()};
@@ -358,7 +361,7 @@ function report(id){
      secondVisit={date:d,time:t};
      const exists=state.appts.some(x=>x.parentId===a.id&&x.passage===2);
      if(!exists){
-       state.appts.push({id:crypto.randomUUID(),date:d,start:t,end:addHour(t),client:a.client,clientFirstName:a.clientFirstName||"",clientLastName:a.clientLastName||"",clientPhone:a.clientPhone||"",clientEmail:a.clientEmail||"",address:a.address,type:a.type,technician:a.technician,techEmail:a.techEmail,notes:"Deuxième passage programmé par le technicien depuis le rapport du passage 1.",status:"todo",report:"",signature:"",payment:"",photosBefore:[],photosAfter:[],passage:2,parentId:a.id});
+       state.appts.push({id:crypto.randomUUID(),date:d,start:t,end:addHour(t),client:a.client,clientFirstName:a.clientFirstName||"",clientLastName:a.clientLastName||"",clientPhone:a.clientPhone||"",clientEmail:a.clientEmail||"",address:a.address,amount:a.amount||"",type:a.type,technician:a.technician,techEmail:a.techEmail,notes:"Deuxième passage programmé par le technicien depuis le rapport du passage 1.",status:"todo",report:"",signature:"",payment:"",photosBefore:[],photosAfter:[],passage:2,parentId:a.id});
      }
    }
    try{save()}catch(err){if(submitBtn){submitBtn.disabled=false;submitBtn.textContent="Valider le rapport"}return alert("Les photos sont trop lourdes. Choisis moins de photos.")}
@@ -420,7 +423,7 @@ function generateReportPdf(a,secondVisit=null){
  labelValue("Prestation",a.type||"");
  labelValue("Date / horaire",(a.date||"")+" · "+(a.start||"")+" - "+(a.end||""));
  labelValue("Technicien",a.technician||"");
- labelValue("Paiement",a.payment||"Non renseigné");
+ labelValue("Montant TTC",a.amount?Number(a.amount).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €":"Non renseigné");\n labelValue("Paiement",a.payment||"Non renseigné");
  if(secondVisit?.date)labelValue("2e passage",secondVisit.date+" à "+(secondVisit.time||""));
 
  section("Rapport technicien");
