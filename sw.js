@@ -1,4 +1,4 @@
-const CACHE="cdn-planning-v18";
+const CACHE="cdn-planning-v19";
 const CORE=["./","manifest.json","icon.svg"];
 self.addEventListener("install",event=>{
   self.skipWaiting();
