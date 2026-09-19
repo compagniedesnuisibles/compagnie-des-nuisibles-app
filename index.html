@@ -84,29 +84,36 @@ canvas{width:100%;height:190px;border:1px dashed #9cc8b4;border-radius:14px;back
 <div id="app"></div>
 <script>
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
-const USERS=[
- {email:"admin@demo.local",code:"2468",role:"admin",name:"Administrateur"},
- {email:"technicien@demo.local",code:"1234",role:"tech",name:"Technicien Démo"}
+const DEFAULT_USERS=[
+ {id:"u-admin-demo",email:"admin@demo.local",code:"2468",role:"admin",name:"Administrateur",active:true},
+ {id:"u-tech-demo",email:"technicien@demo.local",code:"1234",role:"tech",name:"Technicien Démo",active:true}
 ];
 const today=()=>new Date().toISOString().slice(0,10);
 const esc=(v="")=>String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
-let state={user:null,tab:"planning",date:today(),appts:JSON.parse(localStorage.getItem("cdn_appts")||"null")||[
-{id:crypto.randomUUID(),date:today(),start:"09:00",end:"10:00",client:"Client Démo",address:"Levallois-Perret",type:"Dératisation",technician:"Technicien Démo",techEmail:"technicien@demo.local",notes:"Exemple uniquement.",status:"todo",report:"",signature:"",passage:1,parentId:""}
-]};
-const save=()=>localStorage.setItem("cdn_appts",JSON.stringify(state.appts));
+let state={
+ user:null,
+ tab:"planning",
+ date:today(),
+ users:JSON.parse(localStorage.getItem("cdn_users")||"null")||DEFAULT_USERS,
+ appts:JSON.parse(localStorage.getItem("cdn_appts")||"null")||[
+  {id:crypto.randomUUID(),date:today(),start:"09:00",end:"10:00",client:"Client Démo",address:"Levallois-Perret",type:"Dératisation",technician:"Technicien Démo",techEmail:"technicien@demo.local",notes:"Exemple uniquement.",status:"todo",report:"",signature:"",passage:1,parentId:""}
+ ]
+};
+const save=()=>{localStorage.setItem("cdn_appts",JSON.stringify(state.appts));localStorage.setItem("cdn_users",JSON.stringify(state.users))};
 function shell(sub,body){return '<div class="wrap"><div class="top"><div class="brandline"><div class="logo">CN</div><div><div class="brand">Compagnie des Nuisibles</div><div class="muted">'+esc(sub)+'</div></div></div><button id="logout" class="btn btn-soft">Déconnexion</button></div>'+body+'</div>'}
 function render(){if(!state.user)return login();state.user.role==="admin"?admin():tech()}
 function login(){
  $("#app").innerHTML='<div class="login"><div class="card"><div class="login-head"><div class="logo">CN</div><div><div class="brand" style="font-size:1.15rem">Compagnie des Nuisibles</div><div class="muted">Espace interventions</div></div></div><div class="notice">Version de démonstration sécurisée sans données clients réelles.</div><form id="login"><div class="field"><label>E-mail professionnel</label><input name="email" type="email" required placeholder="votre@email.fr"></div><div class="field"><label>Code d’accès</label><input name="code" inputmode="numeric" required placeholder="••••"></div><button class="btn btn-primary" style="width:100%">Se connecter</button></form><div class="muted" style="margin-top:14px">Admin démo : admin@demo.local / 2468 · Technicien : technicien@demo.local / 1234</div></div></div>';
- $("#login").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));const u=USERS.find(x=>x.email===d.email.trim().toLowerCase()&&x.code===d.code.trim());if(!u)return alert("E-mail ou code incorrect");state.user=u;render()}
+ $("#login").onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));const u=state.users.find(x=>x.active!==false&&x.email===d.email.trim().toLowerCase()&&x.code===d.code.trim());if(!u)return alert("E-mail, code incorrect ou compte désactivé");state.user=u;render()}
 }
-function nav(){return '<div class="nav"><button data-tab="planning" class="'+(state.tab==="planning"?"active":"")+'">Planning</button><button data-tab="new" class="'+(state.tab==="new"?"active":"")+'">Nouvelle intervention</button><button data-tab="history" class="'+(state.tab==="history"?"active":"")+'">Historique</button></div>'}
+function nav(){return '<div class="nav"><button data-tab="planning" class="'+(state.tab==="planning"?"active":"")+'">Planning</button><button data-tab="new" class="'+(state.tab==="new"?"active":"")+'">Nouvelle intervention</button><button data-tab="history" class="'+(state.tab==="history"?"active":"")+'">Historique</button><button data-tab="users" class="'+(state.tab==="users"?"active":"")+'">Utilisateurs</button></div>'}
 function admin(){
  const list=state.appts.filter(a=>a.date===state.date).sort((a,b)=>a.start.localeCompare(b.start));
  let body=nav();
  if(state.tab==="planning") body+=planning(list);
  else if(state.tab==="new") body+=form();
- else body+=history();
+ else if(state.tab==="history") body+=history();
+ else body+=usersView();
  $("#app").innerHTML=shell("Espace administrateur",body);bindAdmin()
 }
 function planning(list){
@@ -115,17 +122,42 @@ function planning(list){
  '<div class="card"><div class="section-title"><div><h2>Journée</h2><div class="muted">Toutes les interventions par ordre horaire</div></div><input id="day" type="date" value="'+state.date+'" style="width:auto"></div>'+ (list.length?list.map(a=>card(a,true)).join(""):'<div class="muted">Aucune intervention ce jour.</div>') +'</div>'
 }
 function card(a,adminMode){const passage=a.passage||1;return '<div class="appt"><div class="time">'+esc(a.start)+'<div class="muted">'+esc(a.end)+'</div></div><div><strong>'+esc(a.client)+'</strong><div class="muted" style="margin-top:3px">'+esc(a.address)+'</div><div class="statusline"><span class="badge green">'+esc(a.type)+'</span><span class="badge">Passage '+passage+'</span><span class="badge">'+esc(a.technician)+'</span><span class="badge '+(a.status==="done"?"done":"todo")+'">'+(a.status==="done"?"Terminé":"À faire")+'</span>'+(a.payment?'<span class="badge pay-chip">'+esc(a.payment)+'</span>':'')+'</div></div><div class="actions">'+(adminMode?'<button class="btn btn-soft" data-edit="'+a.id+'">Modifier</button><button class="btn btn-danger" data-del="'+a.id+'">Supprimer</button>':'<button class="btn btn-primary" data-report="'+a.id+'">'+(a.status==="done"?"Voir le rapport":"Faire le rapport")+'</button>')+'</div></div>'}
-function form(id=""){const a=id?state.appts.find(x=>x.id===id):null;return '<div class="card"><h2>'+(a?"Modifier":"Nouvelle")+' intervention</h2><form id="apptForm" data-id="'+(a?.id||"")+'"><div class="grid grid2"><div><div class="field"><label>Date</label><input name="date" type="date" required value="'+(a?.date||state.date)+'"></div><div class="grid grid2"><div class="field"><label>Début</label><input name="start" type="time" required value="'+(a?.start||"09:00")+'"></div><div class="field"><label>Fin</label><input name="end" type="time" required value="'+(a?.end||"10:00")+'"></div></div><div class="field"><label>Client</label><input name="client" required value="'+esc(a?.client||"")+'"></div><div class="field"><label>Adresse</label><input name="address" required value="'+esc(a?.address||"")+'"></div></div><div><div class="field"><label>Type</label><select name="type">'+["Dératisation","Punaises de lit","Cafards","Désinfection","Guêpes/Frelons","Autre"].map(v=>'<option '+(a?.type===v?"selected":"")+'>'+v+'</option>').join("")+'</select></div><div class="field"><label>Technicien</label><input name="technician" required value="'+esc(a?.technician||"Technicien Démo")+'"></div><div class="field"><label>E-mail technicien</label><input name="techEmail" type="email" required value="'+esc(a?.techEmail||"technicien@demo.local")+'"></div><div class="field"><label>Consignes</label><textarea name="notes">'+esc(a?.notes||"")+'</textarea></div></div></div><div class="actions"><button class="btn btn-primary">Enregistrer</button><button id="cancel" type="button" class="btn btn-soft">Annuler</button></div></form></div>'}
+function form(id=""){
+ const a=id?state.appts.find(x=>x.id===id):null;
+ const techs=state.users.filter(u=>u.role==="tech"&&u.active!==false);
+ const selectedEmail=a?.techEmail||techs[0]?.email||"";
+ return '<div class="card"><h2>'+(a?"Modifier":"Nouvelle")+' intervention</h2><form id="apptForm" data-id="'+(a?.id||"")+'"><div class="grid grid2"><div><div class="field"><label>Date</label><input name="date" type="date" required value="'+(a?.date||state.date)+'"></div><div class="grid grid2"><div class="field"><label>Début</label><input name="start" type="time" required value="'+(a?.start||"09:00")+'"></div><div class="field"><label>Fin</label><input name="end" type="time" required value="'+(a?.end||"10:00")+'"></div></div><div class="field"><label>Client</label><input name="client" required value="'+esc(a?.client||"")+'"></div><div class="field"><label>Adresse</label><input name="address" required value="'+esc(a?.address||"")+'"></div></div><div><div class="field"><label>Type</label><select name="type">'+["Dératisation","Punaises de lit","Cafards","Désinfection","Guêpes/Frelons","Autre"].map(v=>'<option '+(a?.type===v?"selected":"")+'>'+v+'</option>').join("")+'</select></div><div class="field"><label>Technicien</label><select name="techEmail" id="techSelect" required><option value="">Choisir un technicien</option>'+techs.map(u=>'<option value="'+esc(u.email)+'" '+(selectedEmail===u.email?"selected":"")+'>'+esc(u.name)+' — '+esc(u.email)+'</option>').join("")+'</select></div><input type="hidden" name="technician" id="techName" value="'+esc(a?.technician||"")+'"><div class="field"><label>Consignes</label><textarea name="notes">'+esc(a?.notes||"")+'</textarea></div></div></div><div class="actions"><button class="btn btn-primary">Enregistrer</button><button id="cancel" type="button" class="btn btn-soft">Annuler</button></div></form></div>'
+}
 function history(){return '<div class="card"><h2>Historique</h2>'+[...state.appts].sort((a,b)=>(b.date+b.start).localeCompare(a.date+a.start)).map(a=>card(a,false)).join("")+'</div>'}
+function usersView(){
+ const admins=state.users.filter(u=>u.role==="admin"), techs=state.users.filter(u=>u.role==="tech");
+ const userCard=u=>'<div class="appt" style="grid-template-columns:52px minmax(0,1fr) auto"><div class="logo" style="width:44px;height:44px;border-radius:12px">'+esc((u.name||"?").slice(0,2).toUpperCase())+'</div><div><strong>'+esc(u.name)+'</strong><div class="muted">'+esc(u.email)+'</div><div class="statusline"><span class="badge '+(u.role==="admin"?"green":"")+'">'+(u.role==="admin"?"Administrateur":"Technicien")+'</span><span class="badge '+(u.active!==false?"done":"")+'">'+(u.active!==false?"Actif":"Désactivé")+'</span></div></div><div class="actions"><button class="btn btn-soft" data-user-edit="'+u.id+'">Modifier</button><button class="btn '+(u.active!==false?"btn-danger":"btn-soft")+'" data-user-toggle="'+u.id+'">'+(u.active!==false?"Désactiver":"Réactiver")+'</button></div></div>';
+ return '<div class="grid grid2"><div class="card"><div class="section-title"><div><h2>Utilisateurs</h2><div class="muted">Crée les comptes administrateurs et techniciens.</div></div></div><form id="userForm"><input type="hidden" name="id" id="userId"><div class="field"><label>Nom</label><input name="name" id="userName" required placeholder="Nom du collaborateur"></div><div class="field"><label>Rôle</label><select name="role" id="userRole"><option value="tech">Technicien</option><option value="admin">Administrateur</option></select></div><div class="field"><label>E-mail de connexion</label><input name="email" id="userEmail" type="email" required placeholder="prenom@entreprise.fr"></div><div class="field"><label>Code de connexion</label><input name="code" id="userCode" inputmode="numeric" minlength="4" required placeholder="4 chiffres minimum"></div><div class="actions"><button class="btn btn-primary" id="saveUser">Créer l’utilisateur</button><button type="button" class="btn btn-soft" id="cancelUser" style="display:none">Annuler</button></div></form></div><div><div class="card"><h2 style="margin-top:0">Techniciens</h2>'+(techs.length?techs.map(userCard).join(""):'<div class="muted">Aucun technicien.</div>')+'</div><div class="card"><h2 style="margin-top:0">Administrateurs</h2>'+(admins.length?admins.map(userCard).join(""):'<div class="muted">Aucun administrateur.</div>')+'</div></div></div>'
+}
 function bindAdmin(){
  $("#logout").onclick=()=>{state.user=null;render()};
  $$("[data-tab]").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;render()});
  if($("#day"))$("#day").onchange=e=>{state.date=e.target.value;render()};
  $$("[data-del]").forEach(b=>b.onclick=()=>{if(confirm("Supprimer cette intervention ?")){state.appts=state.appts.filter(a=>a.id!==b.dataset.del);save();render()}});
  $$("[data-edit]").forEach(b=>b.onclick=()=>{$("#app").innerHTML=shell("Espace administrateur",form(b.dataset.edit));$("#logout").onclick=()=>{state.user=null;render()};bindForm()});
- bindForm()
+ bindForm();
+ bindUsers()
 }
-function bindForm(){const f=$("#apptForm");if(!f)return;if($("#cancel"))$("#cancel").onclick=()=>{state.tab="planning";render()};f.onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(f));const id=f.dataset.id;if(id)state.appts=state.appts.map(a=>a.id===id?{...a,...d}:a);else state.appts.push({id:crypto.randomUUID(),...d,status:"todo",report:"",signature:"",passage:1,parentId:""});save();state.date=d.date;alert("Intervention enregistrée.");state.tab="planning";render()}}
+function bindForm(){
+ const f=$("#apptForm");if(!f)return;
+ if($("#cancel"))$("#cancel").onclick=()=>{state.tab="planning";render()};
+ const syncTech=()=>{const u=state.users.find(x=>x.email===$("#techSelect")?.value);if($("#techName"))$("#techName").value=u?.name||""};
+ if($("#techSelect")){$("#techSelect").onchange=syncTech;syncTech()}
+ f.onsubmit=e=>{e.preventDefault();syncTech();const d=Object.fromEntries(new FormData(f));if(!d.techEmail)return alert("Choisis un technicien.");const id=f.dataset.id;if(id)state.appts=state.appts.map(a=>a.id===id?{...a,...d}:a);else state.appts.push({id:crypto.randomUUID(),...d,status:"todo",report:"",signature:"",passage:1,parentId:""});save();state.date=d.date;alert("Intervention enregistrée.");state.tab="planning";render()}
+}
+function bindUsers(){
+ const form=$("#userForm"); if(!form)return;
+ const reset=()=>{form.reset();$("#userId").value="";$("#saveUser").textContent="Créer l’utilisateur";$("#cancelUser").style.display="none"};
+ $("#cancelUser").onclick=reset;
+ $("[data-user-edit]").forEach(b=>b.onclick=()=>{const u=state.users.find(x=>x.id===b.dataset.userEdit);if(!u)return;$("#userId").value=u.id;$("#userName").value=u.name;$("#userRole").value=u.role;$("#userEmail").value=u.email;$("#userCode").value=u.code;$("#saveUser").textContent="Enregistrer les modifications";$("#cancelUser").style.display="inline-block";window.scrollTo({top:0,behavior:"smooth"})});
+ $("[data-user-toggle]").forEach(b=>b.onclick=()=>{const u=state.users.find(x=>x.id===b.dataset.userToggle);if(!u)return;if(u.id===state.user.id&&u.active!==false)return alert("Tu ne peux pas désactiver ton propre compte pendant que tu es connecté.");u.active=u.active===false?true:false;save();render()});
+ form.onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(form));d.email=d.email.trim().toLowerCase();d.code=d.code.trim();if(d.code.length<4)return alert("Le code doit contenir au moins 4 caractères.");const duplicate=state.users.find(u=>u.email===d.email&&u.id!==d.id);if(duplicate)return alert("Un utilisateur utilise déjà cette adresse e-mail.");if(d.id){state.users=state.users.map(u=>u.id===d.id?{...u,name:d.name.trim(),role:d.role,email:d.email,code:d.code}:u)}else{state.users.push({id:crypto.randomUUID(),name:d.name.trim(),role:d.role,email:d.email,code:d.code,active:true})}save();alert(d.id?"Utilisateur modifié.":"Utilisateur créé.");render()}
+}
 function tech(){const list=state.appts.filter(a=>a.techEmail===state.user.email).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));$("#app").innerHTML=shell("Espace technicien",'<div class="card"><h2>Mes interventions</h2>'+(list.length?list.map(a=>card(a,false)).join(""):'<div class="muted">Aucune intervention assignée.</div>')+'</div>');$("#logout").onclick=()=>{state.user=null;render()};$$("[data-report]").forEach(b=>b.onclick=()=>report(b.dataset.report))}
 function report(id){
  const a=state.appts.find(x=>x.id===id), passage=a.passage||1;
