@@ -751,14 +751,20 @@ async function report(id){
   state.reportSaving=true;
   btn.disabled=true;btn.textContent="Validation...";
   try{
-   const update={report:reportText,amount:amount||null,payment:payment||null,status:"done"};
-   const {data:updated,error}=await sb.from("interventions").update(update).eq("id",a.id).select("id,status").single();
+   const {data:updated,error}=await sb.rpc("complete_intervention",{
+    p_intervention_id:a.id,
+    p_report:reportText,
+    p_amount:amount?Number(amount):null,
+    p_payment:payment||null
+   });
    if(error)throw error;
-   if(!updated||updated.status!=="done")throw new Error("Le rapport n’a pas pu être validé.");
+   const saved=Array.isArray(updated)?updated[0]:updated;
+   if(!saved||saved.status!=="done")throw new Error("Le rapport n’a pas pu être validé.");
 
-   if(newBefore)await replaceMedia(a.id,"before",newBefore);
-   if(newAfter)await replaceMedia(a.id,"after",newAfter);
-   await replaceMedia(a.id,"signature",[sig]);
+   const mediaErrors=[];
+   if(newBefore){try{await replaceMedia(a.id,"before",newBefore)}catch(e){console.error(e);mediaErrors.push("photos avant")}}
+   if(newAfter){try{await replaceMedia(a.id,"after",newAfter)}catch(e){console.error(e);mediaErrors.push("photos après")}}
+   try{await replaceMedia(a.id,"signature",[sig])}catch(e){console.error(e);mediaErrors.push("signature")}
 
    if(passage===1&&$("#needSecond")?.checked){
     const d=$("#secondDate").value,t=$("#secondTime").value;
@@ -768,7 +774,7 @@ async function report(id){
 
    await loadData();
    state.reportSaving=false;
-   alert("Rapport validé. La fiche client est terminée.");
+   alert(mediaErrors.length?"Rapport validé. La fiche est terminée, mais certains médias n’ont pas pu être enregistrés : "+mediaErrors.join(", "):"Rapport validé. La fiche client est terminée.");
    render()
   }catch(err){
    state.reportSaving=false;
