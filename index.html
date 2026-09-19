@@ -117,7 +117,7 @@ let state={
  date:today(),
  calendarView:"day",
  techFilter:"all",
- company:JSON.parse(localStorage.getItem("cdn_company")||"null")||{name:"Compagnie des Nuisibles",siret:"",address:"",phone:"07 59 67 55 26",email:"compagniedesnuisibles@gmail.com",website:"compagniedesnuisibles.com"},
+ company:JSON.parse(localStorage.getItem("cdn_company")||"null")||{name:"Compagnie des Nuisibles",siret:"919 530 949 00016",address:"14 rue de Thionville, 75019 Paris",phone:"07 59 67 55 26",email:"compagniedesnuisibles@gmail.com",website:"compagniedesnuisibles.com"},
  users:JSON.parse(localStorage.getItem("cdn_users")||"null")||DEFAULT_USERS,
  appts:JSON.parse(localStorage.getItem("cdn_appts")||"null")||[
   {id:crypto.randomUUID(),date:today(),start:"09:00",end:"10:00",client:"Client Démo",address:"Levallois-Perret",type:"Dératisation",technician:"Technicien Démo",techEmail:"technicien@demo.local",notes:"Exemple uniquement.",status:"todo",report:"",signature:"",passage:1,parentId:""}
