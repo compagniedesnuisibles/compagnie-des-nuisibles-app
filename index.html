@@ -290,26 +290,46 @@ function report(id){
  '<div><div class="photo-box"><label>Photos avant intervention</label><input id="photosBefore" type="file" accept="image/*" multiple><div class="muted">Maximum 3 photos.</div><div id="beforePreview" class="previews">'+before.map(src=>'<img src="'+src+'" alt="Photo avant">').join("")+'</div></div><div class="photo-box" style="margin-top:12px"><label>Photos après intervention</label><input id="photosAfter" type="file" accept="image/*" multiple><div class="muted">Maximum 3 photos.</div><div id="afterPreview" class="previews">'+after.map(src=>'<img src="'+src+'" alt="Photo après">').join("")+'</div></div></div></div>'+
  (passage===1?'<div class="followup"><label style="display:flex;align-items:center;gap:10px;font-size:.95rem"><input id="needSecond" type="checkbox" style="width:22px;height:22px;min-height:auto;accent-color:var(--green)"> Programmer un 2e passage</label><div id="secondFields" style="display:none;margin-top:14px"><div class="grid grid2"><div class="field"><label>Date du 2e passage</label><input id="secondDate" type="date" min="'+today()+'"></div><div class="field"><label>Heure du 2e passage</label><input id="secondTime" type="time" value="'+esc(a.start)+'"></div></div><div class="muted">Une fois le rapport validé, ce 2e passage sera ajouté automatiquement au planning du technicien.</div></div></div>':'')+
  '<div class="field"><label>Signature du client</label><canvas id="sig"></canvas><button id="clearSig" type="button" class="btn btn-soft" style="margin-top:8px">Effacer la signature</button></div>'+
- '<div class="notice" style="margin-top:14px">À la validation, le rapport est enregistré. L’envoi automatique par e-mail sera activé dès que le backend sécurisé est connecté.</div>'+
+ '<div class="notice" style="margin-top:14px">À la validation, le rapport est enregistré puis envoyé automatiquement par e-mail à l’administrateur.</div>'+
  '<div class="actions"><button class="btn btn-primary">Valider le rapport</button><button id="back" type="button" class="btn btn-soft">Retour</button></div></form></div>');
  $("#logout").onclick=()=>{state.user=null;render()};$("#back").onclick=render;setupSig(a.signature);
  let nextBefore=[...before], nextAfter=[...after];
  bindPhotoInput("#photosBefore","#beforePreview",arr=>nextBefore=arr,nextBefore);
  bindPhotoInput("#photosAfter","#afterPreview",arr=>nextAfter=arr,nextAfter);
  if($("#needSecond"))$("#needSecond").onchange=e=>{const yes=e.target.checked;$("#secondFields").style.display=yes?"block":"none";$("#secondDate").required=yes;$("#secondTime").required=yes};
- $("#reportForm").onsubmit=e=>{
+ $("#reportForm").onsubmit=async e=>{
    e.preventDefault();
+   const submitBtn=e.currentTarget.querySelector('button[type="submit"]');
+   if(submitBtn){submitBtn.disabled=true;submitBtn.textContent="Envoi du rapport..."}
    a.report=$("#reportText").value.trim();a.payment=$("#payment").value;a.signature=$("#sig").toDataURL("image/png");a.status="done";a.photosBefore=nextBefore;a.photosAfter=nextAfter;
+   let secondVisit=null;
    if(passage===1 && $("#needSecond")?.checked){
      const d=$("#secondDate").value,t=$("#secondTime").value;
-     if(!d||!t)return alert("Choisis la date et l’heure du deuxième passage.");
+     if(!d||!t){if(submitBtn){submitBtn.disabled=false;submitBtn.textContent="Valider le rapport"}return alert("Choisis la date et l’heure du deuxième passage.")}
+     secondVisit={date:d,time:t};
      const exists=state.appts.some(x=>x.parentId===a.id&&x.passage===2);
      if(!exists){
        state.appts.push({id:crypto.randomUUID(),date:d,start:t,end:addHour(t),client:a.client,address:a.address,type:a.type,technician:a.technician,techEmail:a.techEmail,notes:"Deuxième passage programmé par le technicien depuis le rapport du passage 1.",status:"todo",report:"",signature:"",payment:"",photosBefore:[],photosAfter:[],passage:2,parentId:a.id});
      }
    }
-   try{save()}catch(err){alert("Les photos sont trop lourdes pour cette version de démonstration. Choisis moins de photos.");return}
-   alert("Rapport enregistré"+(passage===1&&$("#needSecond")?.checked?" et deuxième passage ajouté au planning.":"."));
+   try{save()}catch(err){if(submitBtn){submitBtn.disabled=false;submitBtn.textContent="Valider le rapport"}return alert("Les photos sont trop lourdes. Choisis moins de photos.")}
+   try{
+     const response=await fetch("/api/send-report",{
+       method:"POST",
+       headers:{"Content-Type":"application/json"},
+       body:JSON.stringify({
+         client:a.client,address:a.address,type:a.type,technician:a.technician,techEmail:a.techEmail,
+         date:a.date,start:a.start,end:a.end,passage:a.passage||1,payment:a.payment,report:a.report,
+         secondVisit,photosBefore:a.photosBefore||[],photosAfter:a.photosAfter||[],signature:a.signature
+       })
+     });
+     const result=await response.json().catch(()=>({}));
+     if(!response.ok)throw new Error(result.error||"Échec de l’envoi");
+     alert("Rapport enregistré et envoyé par e-mail"+(secondVisit?" · deuxième passage ajouté au planning.":"."));
+   }catch(err){
+     console.error(err);
+     alert("Rapport enregistré, mais l’e-mail n’a pas pu être envoyé : "+err.message);
+   }
    render()
  }
 }
@@ -318,7 +338,7 @@ function bindPhotoInput(inputSel,previewSel,setter,current){
  input.onchange=async()=>{
    const files=[...input.files].slice(0,3);
    const arr=[];
-   for(const file of files) arr.push(await compressImage(file,900,.72));
+   for(const file of files) arr.push(await compressImage(file,640,.58));
    setter(arr); preview.innerHTML=arr.map(src=>'<img src="'+src+'" alt="Photo intervention">').join("");
  };
 }
