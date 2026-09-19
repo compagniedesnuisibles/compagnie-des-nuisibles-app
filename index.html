@@ -731,10 +731,22 @@ async function report(id){
  let newBefore=null,newAfter=null;bindPhotoInput("#photosBefore","#beforePreview",x=>newBefore=x);bindPhotoInput("#photosAfter","#afterPreview",x=>newAfter=x);
  if($("#needSecond"))$("#needSecond").onchange=e=>{$("#secondFields").style.display=e.target.checked?"block":"none";$("#secondDate").required=e.target.checked;$("#secondTime").required=e.target.checked};
  $("#reportForm").onsubmit=async e=>{
-  e.preventDefault();const btn=e.currentTarget.querySelector('button[type="submit"]');btn.disabled=true;btn.textContent="Enregistrement...";
-  const sig=$("#sig").toDataURL("image/png"),update={report:$("#reportText").value.trim(),amount:$("#amount").value||null,payment:$("#payment").value||null,status:"done"};
-  const {error}=await sb.from("interventions").update(update).eq("id",a.id);if(error){btn.disabled=false;btn.textContent="Valider le rapport";return alert(error.message)}
+  e.preventDefault();
+  const btn=e.currentTarget.querySelector('button[type="submit"]');
+  const reportText=$("#reportText").value.trim(),amount=$("#amount").value||"",payment=$("#payment").value||"";
+  const sig=$("#sig").toDataURL("image/png");
+  const pdfSnapshot={...a,report:reportText,amount,payment,signature:sig,photosBefore:newBefore||a.photosBefore||[],photosAfter:newAfter||a.photosAfter||[]};
   try{
+   generateReportPdf(pdfSnapshot,null);
+  }catch(pdfErr){
+   console.error("PDF immédiat",pdfErr);
+   return alert("Impossible de générer le PDF : "+pdfErr.message);
+  }
+  btn.disabled=true;btn.textContent="Enregistrement...";
+  const update={report:reportText,amount:amount||null,payment:payment||null,status:"done"};
+  try{
+   const {error}=await sb.from("interventions").update(update).eq("id",a.id);
+   if(error)throw error;
    if(newBefore)await replaceMedia(a.id,"before",newBefore);
    if(newAfter)await replaceMedia(a.id,"after",newAfter);
    await replaceMedia(a.id,"signature",[sig]);
@@ -743,9 +755,14 @@ async function report(id){
     const payload={intervention_date:d,start_time:t,end_time:addHour(t),client_first_name:a.clientFirstName,client_last_name:a.clientLastName||a.client,client_phone:a.clientPhone||null,client_email:a.clientEmail||null,address:a.address,service_type:a.type,technician_id:a.technicianId,notes:"Deuxième passage programmé depuis le rapport du passage 1.",status:"todo",passage:2,parent_id:a.id};
     const {error:e2}=await sb.from("interventions").insert(payload);if(e2)throw e2
    }
-   await loadData();const refreshed=state.appts.find(x=>x.id===a.id);if(refreshed){await loadMedia(refreshed);generateReportPdf(refreshed,null)}
-   alert("Rapport enregistré et synchronisé.");render()
-  }catch(err){console.error(err);alert("Rapport enregistré, mais un élément média/PDF a rencontré une erreur : "+err.message);await loadData();render()}
+   await loadData();
+   alert("Rapport enregistré et synchronisé. Le PDF a été généré.");
+   render()
+  }catch(err){
+   console.error(err);
+   btn.disabled=false;btn.textContent="Valider le rapport";
+   alert("Le PDF a été généré, mais la synchronisation du rapport a rencontré une erreur : "+err.message);
+  }
  }
 }
 async function replaceMedia(interventionId,kind,dataUrls){
