@@ -108,7 +108,7 @@ const SUPABASE_KEY="sb_publishable_uv7CV5zG_SLw8VTQKJCpsA_4A_dkgZU";
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=(v="")=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
-let state={user:null,tab:"dashboard",techScreen:"planning",techPeriod:"today",clients:[],interventions:[],profiles:[],audit:[],planningView:"day",planningDate:new Date().toISOString().slice(0,10)};
+let state={user:null,tab:"dashboard",techScreen:"planning",techPeriod:"today",clients:[],interventions:[],profiles:[],audit:[],planningView:"day",planningDate:isoDate(new Date())};
 
 async function loadAll(){
  const {data:{user}}=await sb.auth.getUser(); if(!user){state.user=null;return}
@@ -144,7 +144,7 @@ function adminShell(content){
 function pageTitle(){return({dashboard:"Tableau de bord",clients:"Clients",interventions:"Interventions",planning:"Planning",reports:"Rapports",technicians:"Techniciens",security:"Sécurité"}[state.tab]||"Tableau de bord")}
 function pageSubtitle(){return({dashboard:"Pilotez votre activité et gardez une longueur d’avance sur les nuisibles.",clients:"Votre fichier clients centralisé, réservé à l’administration.",interventions:"Suivez toutes les interventions et leur avancement.",planning:"Organisez les tournées et les rendez-vous de l’équipe.",reports:"Retrouvez les interventions terminées et leurs rapports.",technicians:"Gérez les accès et l’activité de l’équipe terrain.",security:"Contrôle des accès et traçabilité des opérations."}[state.tab]||"")}
 function adminDashboard(){
- const today=new Date().toISOString().slice(0,10),day=state.interventions.filter(i=>i.intervention_date===today),done=day.filter(i=>i.status==="done"),revenue=done.reduce((s,i)=>s+(Number(i.amount)||0),0),review=state.interventions.filter(i=>i.status==="revisit"||((i.passage||1)===2&&i.status!=="done")).length,activeTech=state.profiles.filter(p=>p.role==="tech"&&p.active).length;
+ const today=isoDate(new Date()),day=state.interventions.filter(i=>i.intervention_date===today),done=day.filter(i=>i.status==="done"),revenue=done.reduce((s,i)=>s+(Number(i.amount)||0),0),review=state.interventions.filter(i=>i.status==="revisit"||((i.passage||1)===2&&i.status!=="done")).length,activeTech=state.profiles.filter(p=>p.role==="tech"&&p.active).length;
  const rows=day.slice().sort((a,b)=>String(a.start_time).localeCompare(String(b.start_time))).map(i=>'<tr><td><strong>'+esc(String(i.start_time||"").slice(0,5))+'</strong></td><td class="clientcell"><strong>'+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</strong><span>'+esc(i.address||"")+'</span></td><td>'+esc(i.service_type)+'</td><td><div class="techpill"><div class="avatar">'+esc(initials(i.technician?.name||""))+'</div>'+esc(i.technician?.name||"")+'</div></td><td><span class="badge '+sClass(i.status)+'">'+sLabel(i.status)+'</span></td></tr>').join("");
  const recentClients=state.clients.slice(0,3).map(c=>'<div class="listrow"><div><strong>'+esc(c.company_name||[c.first_name,c.last_name].filter(Boolean).join(" "))+'</strong><span>'+esc(c.billing_address||c.phone||"")+'</span></div><span>'+new Date(c.created_at).toLocaleDateString("fr-FR")+'</span></div>').join("");
  const audits=state.audit.slice(0,4).map(a=>'<div class="audititem"><div class="dot"></div><div><strong class="small">'+esc(a.action)+' · '+esc(a.entity_type)+'</strong><div class="muted tiny">'+new Date(a.created_at).toLocaleString("fr-FR")+'</div></div></div>').join("");
@@ -227,7 +227,7 @@ function renderAdmin(){
 }
 function showInterventionModal(){
  const techs=state.profiles.filter(p=>p.role==="tech"&&p.active);
- const tomorrow=state.planningDate||new Date().toISOString().slice(0,10);
+ const tomorrow=state.planningDate||isoDate(new Date());
  const wrap=document.createElement("div");
  wrap.className="modal-backdrop";
  wrap.id="interventionModal";
