@@ -267,34 +267,83 @@ function showInterventionModal(){
  document.body.appendChild(wrap);
  const close=()=>wrap.remove(); $("#closeInterventionModal").onclick=close;$("#cancelIntervention").onclick=close;wrap.onclick=e=>{if(e.target===wrap)close()};
  const form=$("#newInterventionForm"),input=$("#addressSearch"),results=$("#addressResults");
- let timer=null,chosen=null;
+ let timer=null,chosen=null,lastFeatures=[];
+ const fillAddress=f=>{
+   if(!f)return;
+   const p=f.properties||{},g=f.geometry?.coordinates||[];
+   chosen=f;
+   input.value=p.label||p.name||input.value;
+   form.postal_code.value=p.postcode||"";
+   form.city.value=p.city||p.municipality||"";
+   form.longitude.value=Number.isFinite(Number(g[0]))?g[0]:"";
+   form.latitude.value=Number.isFinite(Number(g[1]))?g[1]:"";
+   results.classList.add("hidden")
+ };
+ const searchAddress=async q=>{
+   const url="https://data.geopf.fr/geocodage/search?q="+encodeURIComponent(q)+"&autocomplete=true&limit=6&type=housenumber";
+   const res=await fetch(url,{headers:{"Accept":"application/json"}});
+   if(!res.ok)throw new Error("Service adresse indisponible");
+   const json=await res.json();
+   return Array.isArray(json.features)?json.features:[]
+ };
  input.oninput=()=>{
-   chosen=null;form.postal_code.value="";form.city.value="";form.latitude.value="";form.longitude.value="";
-   clearTimeout(timer);const q=input.value.trim();if(q.length<3){results.classList.add("hidden");results.innerHTML="";return}
+   chosen=null;lastFeatures=[];form.postal_code.value="";form.city.value="";form.latitude.value="";form.longitude.value="";
+   clearTimeout(timer);const q=input.value.trim();
+   if(q.length<3){results.classList.add("hidden");results.innerHTML="";return}
+   results.classList.remove("hidden");results.innerHTML='<div class="address-option"><span>Recherche de l’adresse…</span></div>';
    timer=setTimeout(async()=>{
      try{
-       const res=await fetch("https://data.geopf.fr/geocodage/search/?limit=6&q="+encodeURIComponent(q));
-       const json=await res.json();const feats=json.features||[];
-       results.innerHTML=feats.map((f,idx)=>'<div class="address-option" data-addr="'+idx+'"><strong>'+esc(f.properties.label||"")+'</strong><span>'+esc([f.properties.postcode,f.properties.city].filter(Boolean).join(" "))+'</span></div>').join("");
-       results.classList.toggle("hidden",!feats.length);
-       $("[data-addr]",results).forEach(el=>el.onclick=()=>{const f=feats[Number(el.dataset.addr)],p=f.properties,g=f.geometry?.coordinates||[];chosen=f;input.value=p.label||input.value;form.postal_code.value=p.postcode||"";form.city.value=p.city||"";form.longitude.value=g[0]??"";form.latitude.value=g[1]??"";results.classList.add("hidden")});
-     }catch(e){results.classList.add("hidden")}
-   },220)
+       const feats=await searchAddress(q);lastFeatures=feats;
+       results.innerHTML=feats.length
+         ? feats.map((f,idx)=>'<div class="address-option" data-addr="'+idx+'"><strong>'+esc(f.properties?.label||f.properties?.name||"Adresse")+'</strong><span>'+esc([f.properties?.postcode,f.properties?.city||f.properties?.municipality].filter(Boolean).join(" "))+'</span></div>').join("")
+         : '<div class="address-option"><strong>Aucune proposition exacte</strong><span>Tu peux quand même garder l’adresse saisie.</span></div>';
+       $("[data-addr]",results).forEach(el=>el.onclick=()=>fillAddress(feats[Number(el.dataset.addr)]));
+     }catch(err){
+       console.error("Adresse:",err);
+       results.classList.remove("hidden");
+       results.innerHTML='<div class="address-option"><strong>Recherche d’adresse indisponible</strong><span>Tu peux quand même enregistrer l’intervention avec l’adresse saisie.</span></div>'
+     }
+   },250)
  };
  form.onsubmit=async e=>{
    e.preventDefault();
-   if(!chosen){alert("Choisis une adresse proposée dans la liste pour garantir l’itinéraire.");input.focus();return}
-   const d=Object.fromEntries(new FormData(form));
-   const btn=$("#saveIntervention");btn.disabled=true;btn.textContent="Création...";
-   const {error}=await sb.rpc("create_intervention_with_client",{
-     p_client_name:d.client_name.trim(),p_phone:d.phone.trim(),p_email:d.email.trim(),p_address:d.address.trim(),
-     p_postal_code:d.postal_code||null,p_city:d.city||null,p_latitude:d.latitude?Number(d.latitude):null,p_longitude:d.longitude?Number(d.longitude):null,
-     p_intervention_date:d.intervention_date,p_start_time:d.start_time,p_end_time:d.end_time,p_service_type:d.service_type,p_technician_id:d.technician_id,p_notes:d.notes||null
-   });
-   if(error){btn.disabled=false;btn.textContent="Créer l’intervention";alert("Création impossible : "+error.message);return}
-   await loadAll();state.tab="planning";state.planningView="day";state.planningDate=d.intervention_date;close();renderAdmin()
+   const btn=$("#saveIntervention");
+   const rawAddress=input.value.trim();
+   if(!rawAddress){alert("Renseigne l’adresse de l’intervention.");input.focus();return}
+   if(!form.technician_id.value){alert("Choisis le technicien attribué.");form.technician_id.focus();return}
+   btn.disabled=true;btn.textContent="Création...";
+   try{
+     if(!chosen){
+       try{
+         const feats=lastFeatures.length?lastFeatures:await searchAddress(rawAddress);
+         if(feats.length)fillAddress(feats[0])
+       }catch(_){}
+     }
+     const d=Object.fromEntries(new FormData(form));
+     const {error}=await sb.rpc("create_intervention_with_client",{
+       p_client_name:(d.client_name||"").trim(),
+       p_phone:(d.phone||"").trim(),
+       p_email:(d.email||"").trim(),
+       p_address:(d.address||rawAddress).trim(),
+       p_postal_code:d.postal_code||null,
+       p_city:d.city||null,
+       p_latitude:d.latitude?Number(d.latitude):null,
+       p_longitude:d.longitude?Number(d.longitude):null,
+       p_intervention_date:d.intervention_date,
+       p_start_time:d.start_time,
+       p_end_time:d.end_time,
+       p_service_type:d.service_type,
+       p_technician_id:d.technician_id,
+       p_notes:d.notes||null
+     });
+     if(error)throw error;
+     await loadAll();state.tab="planning";state.planningView="day";state.planningDate=d.intervention_date;close();renderAdmin()
+   }catch(err){
+     console.error(err);
+     btn.disabled=false;btn.textContent="Créer l’intervention";
+     alert("Création impossible : "+(err?.message||err))
+   }
  }
-}
 function showRouteChoices(i){
  const wrap=document.createElement("div");wrap.className="modal-backdrop";wrap.id="routeModal";
  const has=Number.isFinite(Number(i.latitude))&&Number.isFinite(Number(i.longitude));
