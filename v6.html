@@ -289,28 +289,9 @@ function showInterventionModal(){
    results.classList.add("hidden")
  };
  const searchAddress=async q=>{
-   const url="https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=fr&limit=8&accept-language=fr&q="+encodeURIComponent(q);
-   const res=await fetch(url,{headers:{"Accept":"application/json"}});
-   if(!res.ok)throw new Error("Recherche adresse HTTP "+res.status);
-   const arr=await res.json();
-   return (Array.isArray(arr)?arr:[]).map(x=>{
-     const a=x.address||{},city=a.city||a.town||a.village||a.municipality||a.suburb||"";
-     const road=a.road||a.pedestrian||a.residential||a.neighbourhood||"";
-     const house=a.house_number||"";
-     const postcode=a.postcode||"";
-     const shortLabel=[house,road,postcode,city].filter(Boolean).join(" ").trim();
-     return {
-       type:"Feature",
-       geometry:{type:"Point",coordinates:[Number(x.lon),Number(x.lat)]},
-       properties:{
-         label:shortLabel||x.display_name||q,
-         name:road||x.name||"",
-         postcode,
-         city,
-         type:x.type||"address"
-       }
-     }
-   })
+   const {data,error}=await sb.functions.invoke("address-search",{body:{q}});
+   if(error)throw error;
+   return Array.isArray(data?.features)?data.features:[]
  };
  input.oninput=()=>{
    chosen=null;lastFeatures=[];form.postal_code.value="";form.city.value="";form.latitude.value="";form.longitude.value="";
