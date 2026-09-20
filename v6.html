@@ -316,8 +316,8 @@ function techHeader(){
 function renderTech(){
  let inner=state.techScreen==="planning"?techPlanning():state.techScreen==="interventions"?techInterventions():state.techScreen==="clients"?techClients():state.techScreen==="reports"?techReports():state.techScreen==="profile"?techProfile():state.techScreen.startsWith("detail:")?techDetail(state.techScreen.split(":")[1]):techReport(state.techScreen.split(":")[1]);
  $("#app").innerHTML='<div class="tech-app">'+techHeader()+'<div class="tech-screen active">'+inner+'</div><div class="tech-bottom" style="grid-template-columns:repeat(5,1fr)"><button class="'+(state.techScreen==="planning"?"active":"")+'" id="navPlanning">Planning</button><button class="'+(state.techScreen==="interventions"?"active":"")+'" id="navInterventions">Interventions</button><button class="'+(state.techScreen==="clients"?"active":"")+'" id="navClients">Clients</button><button class="'+(state.techScreen==="reports"?"active":"")+'" id="navReports">Rapports</button><button class="'+(state.techScreen==="profile"?"active":"")+'" id="navProfile">Profil</button></div></div>';
- $("[data-tech-period]").forEach(b=>b.onclick=()=>{state.techPeriod=b.dataset.techPeriod;renderTech()});
- $("[data-job]").forEach(b=>b.onclick=()=>{state.techScreen="detail:"+b.dataset.job;renderTech()});
+ $$("[data-tech-period]").forEach(b=>b.onclick=()=>{state.techPeriod=b.dataset.techPeriod;renderTech()});
+ $$("[data-job]").forEach(b=>b.onclick=()=>{state.techScreen="detail:"+b.dataset.job;renderTech()});
  $$("[data-report-open]").forEach(b=>b.onclick=()=>{state.techScreen="report:"+b.dataset.reportOpen;renderTech()});
  $$("[data-route]").forEach(b=>b.onclick=()=>{const i=state.interventions.find(x=>x.id===b.dataset.route);if(i)showRouteChoices(i)});
  $$("[data-client-route]").forEach(b=>b.onclick=()=>{const client=state.clients.find(x=>x.id===b.dataset.clientRoute);if(client)showRouteChoices({address:client.billing_address})});
