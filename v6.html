@@ -136,15 +136,15 @@ function initials(n=""){return n.split(" ").filter(Boolean).map(x=>x[0]).join(""
 function sLabel(s){return({todo:"À faire",scheduled:"Planifiée",en_route:"En route",onsite:"Sur place",done:"Terminée",revisit:"À revoir",cancelled:"Annulée"}[s]||s)}
 function sClass(s){return s==="done"?"done":s==="en_route"?"route":s==="onsite"?"onsite":s==="revisit"||s==="cancelled"?"warn":""}
 function adminNav(){
- const items=[["dashboard","⌂","Tableau de bord"],["clients","👥","Clients"],["interventions","▣","Interventions"],["planning","▦","Planning"],["reports","▤","Rapports"],["services","◇","Prestations"],["technicians","◉","Techniciens"],["security","⛨","Sécurité"]];
+ const items=[["dashboard","⌂","Tableau de bord"],["clients","👥","Clients"],["interventions","▣","Interventions"],["planning","▦","Planning"],["reports","▤","Rapports"],["services","◇","Prestations"],["billdu","€","Billdu"],["technicians","◉","Techniciens"],["security","⛨","Sécurité"]];
  return items.map(([id,ico,label])=>'<button data-tab="'+id+'" class="'+(state.tab===id?"active":"")+'"><span style="display:inline-block;width:24px">'+ico+'</span>'+label+'</button>').join("")
 }
 function adminShell(content){
  const today=new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
  return '<div class="admin-shell"><aside class="admin-sidebar"><div class="admin-brand"><div class="cn">CN</div><div class="company">COMPAGNIE<br>DES NUISIBLES</div><div class="v6">V6 PRO</div></div><div class="side-nav">'+adminNav()+'</div><div class="side-footer">Des espaces sans nuisibles,<br>des vies plus sereines.</div></aside><section class="admin-main"><div class="admin-top"><div class="searchbox">⌕ <input id="globalSearch" placeholder="Rechercher un client, une intervention, une adresse..."><div id="globalResults" class="hidden" style="position:absolute;left:0;right:0;top:calc(100% + 7px);background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 40px rgba(13,45,33,.16);max-height:320px;overflow:auto;z-index:80"></div></div><div class="admin-user"><div class="avatar">'+esc(initials(state.user.name))+'</div><div><strong>'+esc(state.user.name)+'</strong><div class="muted tiny">Administrateur</div></div><button id="logout" class="btn btn-soft">Déconnexion</button></div></div><div class="mobile-admin-nav">'+adminNav()+'</div><div class="admin-content"><div class="hero-strip"><div><div class="muted tiny" style="letter-spacing:.18em;font-weight:800">COMPAGNIE DES NUISIBLES — V6 PRO</div><h1>'+pageTitle()+'</h1><p>'+pageSubtitle()+'</p></div><div class="hero-quote">Un monde plus sain<br>commence ici.</div></div>'+content+'</div></section></div>'
 }
-function pageTitle(){return({dashboard:"Tableau de bord",clients:"Clients",interventions:"Interventions",planning:"Planning",reports:"Rapports",services:"Prestations",technicians:"Techniciens",security:"Sécurité"}[state.tab]||"Tableau de bord")}
-function pageSubtitle(){return({dashboard:"Pilotez votre activité et gardez une longueur d’avance sur les nuisibles.",clients:"Votre fichier clients centralisé, réservé à l’administration.",interventions:"Suivez toutes les interventions et leur avancement.",planning:"Organisez les tournées et les rendez-vous de l’équipe.",reports:"Retrouvez les interventions terminées et leurs rapports.",services:"Gérez votre catalogue de prestations pour les devis et factures.",technicians:"Gérez les accès et l’activité de l’équipe terrain.",security:"Contrôle des accès et traçabilité des opérations."}[state.tab]||"")}
+function pageTitle(){return({dashboard:"Tableau de bord",clients:"Clients",interventions:"Interventions",planning:"Planning",reports:"Rapports",services:"Prestations",billdu:"Billdu",technicians:"Techniciens",security:"Sécurité"}[state.tab]||"Tableau de bord")}
+function pageSubtitle(){return({dashboard:"Pilotez votre activité et gardez une longueur d’avance sur les nuisibles.",clients:"Votre fichier clients centralisé, réservé à l’administration.",interventions:"Suivez toutes les interventions et leur avancement.",planning:"Organisez les tournées et les rendez-vous de l’équipe.",reports:"Retrouvez les interventions terminées et leurs rapports.",services:"Gérez votre catalogue de prestations pour les devis et factures.",billdu:"Connectez Billdu et gérez la facturation depuis le CRM.",technicians:"Gérez les accès et l’activité de l’équipe terrain.",security:"Contrôle des accès et traçabilité des opérations."}[state.tab]||"")}
 function adminDashboard(){
  const today=isoDate(new Date()),td=localDate(today),yd=new Date(td);yd.setDate(yd.getDate()-1);const yesterday=isoDate(yd);
  const day=state.interventions.filter(i=>i.intervention_date===today),prevDay=state.interventions.filter(i=>i.intervention_date===yesterday);
@@ -172,7 +172,7 @@ function adminInterventions(){
    const actions=i.status==="cancelled"
     ? '<button class="btn btn-soft" data-admin-action="restore" data-intervention="'+i.id+'">Réactiver</button>'
     : '<button class="btn btn-soft" data-admin-action="unassign" data-intervention="'+i.id+'">Retirer du tech</button><button class="btn btn-danger" data-admin-action="cancel" data-intervention="'+i.id+'">Annuler</button>';
-   return '<tr><td class="clientcell"><strong>'+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</strong><span>'+esc(i.address||"")+'</span></td><td>'+esc(i.service_type)+'</td><td>'+esc(i.intervention_date)+' '+esc(String(i.start_time||"").slice(0,5))+'</td><td>'+esc(i.technician?.name||"Non attribué")+'</td><td><span class="badge '+sClass(i.status)+'">'+sLabel(i.status)+'</span>'+(i.completion_type==="diagnostic_only"?'<div class="muted tiny" style="margin-top:5px">Diagnostic uniquement</div>':'')+'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><a href="index.html?'+(i.status==="done"?"pdf":"report")+'='+encodeURIComponent(i.id)+'" class="btn btn-soft">'+(i.status==="done"?"Voir PDF":"Ouvrir")+'</a>'+actions+'</div></td></tr>'
+   return '<tr><td class="clientcell"><strong>'+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</strong><span>'+esc(i.address||"")+'</span></td><td>'+esc(i.service_type)+'</td><td>'+esc(i.intervention_date)+' '+esc(String(i.start_time||"").slice(0,5))+'</td><td>'+esc(i.technician?.name||"Non attribué")+'</td><td><span class="badge '+sClass(i.status)+'">'+sLabel(i.status)+'</span>'+(i.completion_type==="diagnostic_only"?'<div class="muted tiny" style="margin-top:5px">Diagnostic uniquement</div>':'')+'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><a href="index.html?'+(i.status==="done"?"pdf":"report")+'='+encodeURIComponent(i.id)+'" class="btn btn-soft">'+(i.status==="done"?"Voir PDF":"Ouvrir")+'</a><button class="btn btn-soft" data-billdu-create="quote" data-intervention="'+i.id+'">Devis</button><button class="btn btn-soft" data-billdu-create="invoice" data-intervention="'+i.id+'">Facture</button><button class="btn btn-soft" data-billdu-send data-intervention="'+i.id+'">Envoyer</button>'+actions+'</div></td></tr>'
  }).join("");
  return '<div class="card panel"><div class="panel-title"><div><h2>Toutes les interventions</h2><p>Suivi opérationnel complet</p></div><a href="#" data-new-intervention class="btn btn-primary">+ Nouvelle intervention</a></div><div class="table-wrap"><table class="crm-table"><thead><tr><th>Client</th><th>Prestation</th><th>Date</th><th>Technicien</th><th>Statut</th><th>Actions</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
 }
@@ -254,6 +254,99 @@ function bindServiceManagement(){
    await loadAll();renderAdmin()
  }
 }
+
+function adminBilldu(){
+ return '<div class="admin-grid"><div class="card panel"><div class="panel-title"><div><h2>Connexion Billdu</h2><p>Les identifiants sont stockés chiffrés côté serveur et ne sont jamais visibles par les techniciens.</p></div><span class="badge" id="billduStatusBadge">Vérification…</span></div><form id="billduConfigForm"><div class="field"><label>Clé API Billdu</label><input name="apiKey" id="billduApiKey" autocomplete="off" placeholder="À récupérer dans Billdu → Paramètres → API"></div><div class="field"><label>Secret API Billdu</label><input name="apiSecret" id="billduApiSecret" type="password" autocomplete="new-password" placeholder="Secret API"></div><div class="formgrid2"><div class="field"><label>TVA par défaut (%)</label><input name="taxRate" id="billduTaxRate" type="number" min="0" max="100" step="0.01" value="20"></div><div class="field"><label>Type utilisé pour “Devis”</label><select name="quoteType" id="billduQuoteType"><option value="order">Commande Billdu</option><option value="proforma">Pro forma Billdu</option></select></div></div><div class="muted tiny" style="margin-bottom:12px">L’API publique Billdu documente officiellement les factures et les commandes. Le bouton “Créer devis” du CRM utilise donc le type sélectionné ci-dessus.</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" id="saveBillduConfig">Enregistrer la connexion</button><button type="button" class="btn btn-soft" id="testBillduConnection">Tester la connexion</button></div></form></div><div class="card panel"><div class="panel-title"><div><h2>Fonctionnement</h2><p>Depuis chaque intervention, admin ou technicien pourra créer et envoyer un document.</p></div></div><div class="listrows"><div class="listrow"><div><strong>Créer un devis</strong><span>Prestation + options + prix TTC → document Billdu</span></div><span class="badge done">Prévu</span></div><div class="listrow"><div><strong>Créer une facture</strong><span>Le client Billdu est créé automatiquement si nécessaire</span></div><span class="badge done">Prévu</span></div><div class="listrow"><div><strong>Envoyer au client</strong><span>Envoi via Billdu à l’adresse e-mail du client</span></div><span class="badge done">Prévu</span></div></div></div></div>'
+}
+async function callBilldu(body){
+ const {data,error}=await sb.functions.invoke("billdu",{body});
+ if(error)throw error;
+ if(data?.error)throw new Error(data.error);
+ return data
+}
+async function bindBillduAdmin(){
+ const form=$("#billduConfigForm");if(!form)return;
+ try{
+   const st=await callBilldu({action:"status"});
+   const badge=$("#billduStatusBadge");
+   badge.textContent=st.configured?"Connecté":"Non connecté";
+   badge.className="badge "+(st.configured?"done":"warn");
+   $("#billduTaxRate").value=String(st.defaultTaxRate??20);
+   $("#billduQuoteType").value=st.quoteType||"order";
+   if(st.configured){
+     $("#billduApiKey").placeholder="Déjà enregistrée · laisse vide si tu ne veux pas la changer";
+     $("#billduApiSecret").placeholder="Déjà enregistré · laisse vide si tu ne veux pas le changer";
+   }
+ }catch(err){$("#billduStatusBadge").textContent="Erreur"}
+ form.onsubmit=async e=>{
+   e.preventDefault();const d=Object.fromEntries(new FormData(form));
+   if(!d.apiKey||!d.apiSecret)return alert("Pour enregistrer ou remplacer la connexion, renseigne la clé API ET le secret API Billdu.");
+   const btn=$("#saveBillduConfig");btn.disabled=true;btn.textContent="Connexion…";
+   try{
+     await callBilldu({action:"configure",apiKey:d.apiKey,apiSecret:d.apiSecret,taxRate:Number(d.taxRate||20),quoteType:d.quoteType});
+     form.apiKey.value="";form.apiSecret.value="";
+     alert("Billdu est connecté au CRM.");
+     renderAdmin()
+   }catch(err){alert("Connexion Billdu impossible : "+err.message);btn.disabled=false;btn.textContent="Enregistrer la connexion"}
+ };
+ $("#testBillduConnection").onclick=async()=>{
+   const b=$("#testBillduConnection");b.disabled=true;b.textContent="Test…";
+   try{await callBilldu({action:"test"});alert("Connexion Billdu OK ✅")}catch(err){alert("Test Billdu impossible : "+err.message)}
+   b.disabled=false;b.textContent="Tester la connexion"
+ }
+}
+function serviceOptionControls(service){
+ const o=service?.options||{},parts=[];
+ const select=(key,label,arr)=>{if(Array.isArray(arr)&&arr.length)parts.push('<div class="field"><label>'+label+'</label><select data-billdu-option="'+key+'">'+arr.map(x=>'<option>'+esc(x)+'</option>').join("")+'</select></div>')};
+ select("treatment","Type de traitement",o.treatments);
+ select("package","Formule",o.packages);
+ select("passages","Nombre de passages",o.passages);
+ select("guarantee","Garantie",o.guarantees);
+ if(Array.isArray(o.methods)&&o.methods.length)parts.push('<div class="field"><label>Méthodes</label><div style="display:grid;gap:7px">'+o.methods.map(x=>'<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-billdu-method value="'+esc(x)+'" checked style="width:18px;height:18px;min-height:auto">'+esc(x)+'</label>').join("")+'</div></div>');
+ return parts.join("")
+}
+function buildBillduDescription(service,root){
+ const o=service?.options||{},lines=[];
+ if(service?.default_description)lines.push(service.default_description);
+ $$("[data-billdu-option]",root).forEach(el=>{if(el.value)lines.push(el.previousElementSibling?.textContent+": "+el.value)});
+ const methods=$$("[data-billdu-method]",root).filter(x=>x.checked).map(x=>x.value);
+ if(methods.length)lines.push("Méthodes : "+methods.join(", "));
+ const pkg=root.querySelector('[data-billdu-option="package"]')?.value||"";
+ if(pkg.toLowerCase().includes("complet")&&Array.isArray(o.complete))lines.push("Comprend : "+o.complete.join(", "));
+ else if(pkg&&Array.isArray(o.standard))lines.push("Comprend : "+o.standard.join(", "));
+ const guarantee=root.querySelector('[data-billdu-option="guarantee"]')?.value||"";
+ if(guarantee&&guarantee!=="Sans garantie"&&o.recurrence_fee)lines.push("Garantie "+guarantee+". "+o.recurrence_fee+".");
+ return lines.join("\n")
+}
+async function showBillduCreateModal(intervention,kind){
+ const services=state.services.filter(s=>s.active);
+ const initial=services.find(s=>s.name===intervention.service_type)||services[0];
+ const wrap=document.createElement("div");wrap.className="modal-backdrop";wrap.id="billduDocModal";
+ wrap.innerHTML='<div class="modal"><div class="modal-head"><div><h2>'+(kind==="invoice"?"Créer une facture":"Créer un devis")+'</h2><div class="muted small">'+esc([intervention.client_first_name,intervention.client_last_name].filter(Boolean).join(" "))+'</div></div><button class="btn btn-soft" id="closeBillduDoc">✕</button></div><form id="billduDocForm"><div class="field"><label>Prestation</label><select id="billduService">'+services.map(s=>'<option value="'+s.id+'" '+(initial?.id===s.id?"selected":"")+'>'+esc(s.name)+'</option>').join("")+'</select></div><div id="billduOptions"></div><div class="formgrid2"><div class="field"><label>Prix TTC (€)</label><input id="billduAmount" type="number" min="0.01" step="0.01" required placeholder="Ex. 350"></div><div class="field"><label>TVA (%)</label><input id="billduTax" type="number" min="0" max="100" step="0.01" value="20" required></div></div><div class="field"><label>Descriptif du document</label><textarea id="billduDescription" rows="7"></textarea></div><div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button type="button" class="btn btn-soft" id="cancelBillduDoc">Annuler</button><button class="btn btn-primary" id="createBillduDoc">'+(kind==="invoice"?"Créer la facture":"Créer le devis")+'</button></div></form></div>';
+ document.body.appendChild(wrap);
+ const close=()=>wrap.remove();$("#closeBillduDoc").onclick=close;$("#cancelBillduDoc").onclick=close;wrap.onclick=e=>{if(e.target===wrap)close()};
+ try{const st=await callBilldu({action:"status"});if(st?.defaultTaxRate!=null)$("#billduTax").value=String(st.defaultTaxRate)}catch(_){}
+ const renderOpts=()=>{const s=state.services.find(x=>x.id===$("#billduService").value);$("#billduOptions").innerHTML=serviceOptionControls(s);const refresh=()=>{$("#billduDescription").value=buildBillduDescription(s,wrap)};$$("[data-billdu-option]",wrap).forEach(x=>x.onchange=refresh);$$("[data-billdu-method]",wrap).forEach(x=>x.onchange=refresh);refresh()};
+ $("#billduService").onchange=renderOpts;renderOpts();
+ $("#billduDocForm").onsubmit=async e=>{
+   e.preventDefault();const s=state.services.find(x=>x.id===$("#billduService").value);const btn=$("#createBillduDoc");btn.disabled=true;btn.textContent="Création…";
+   try{
+     const out=await callBilldu({action:"create",kind,interventionId:intervention.id,serviceName:s?.name||intervention.service_type,description:$("#billduDescription").value,amountTtc:Number($("#billduAmount").value),taxRate:Number($("#billduTax").value)});
+     alert((kind==="invoice"?"Facture":"Devis")+" créé dans Billdu"+(out?.billdu?.serial?" · "+out.billdu.serial:"")+" ✅");
+     close()
+   }catch(err){alert("Création Billdu impossible : "+err.message);btn.disabled=false;btn.textContent=kind==="invoice"?"Créer la facture":"Créer le devis"}
+ }
+}
+async function showBillduSendModal(intervention){
+ const {data:docs,error}=await sb.from("billing_documents").select("*").eq("intervention_id",intervention.id).order("created_at",{ascending:false});
+ if(error)return alert("Impossible de charger les documents : "+error.message);
+ if(!docs?.length)return alert("Aucun devis ou facture Billdu n’a encore été créé pour cette intervention.");
+ const wrap=document.createElement("div");wrap.className="modal-backdrop";wrap.id="billduSendModal";
+ wrap.innerHTML='<div class="modal" style="width:min(560px,100%)"><div class="modal-head"><div><h2>Envoyer au client</h2><div class="muted small">'+esc(intervention.client_email||"Aucun e-mail client")+'</div></div><button class="btn btn-soft" id="closeBillduSend">✕</button></div><div style="display:grid;gap:9px">'+docs.map(d=>'<div class="listrow"><div><strong>'+(d.kind==="invoice"?"Facture":"Devis")+(d.serial?" · "+esc(d.serial):"")+'</strong><span>'+Number(d.amount_ttc||0).toLocaleString("fr-FR",{style:"currency",currency:"EUR"})+(d.sent_at?" · Envoyé":"")+'</span></div><button class="btn btn-primary" data-send-billdu="'+d.id+'">Envoyer</button></div>').join("")+'</div></div>';
+ document.body.appendChild(wrap);
+ const close=()=>wrap.remove();$("#closeBillduSend").onclick=close;wrap.onclick=e=>{if(e.target===wrap)close()};
+ $$("[data-send-billdu]",wrap).forEach(b=>b.onclick=async()=>{b.disabled=true;b.textContent="Envoi…";try{await callBilldu({action:"send",interventionId:intervention.id,billingDocumentId:b.dataset.sendBilldu,email:intervention.client_email});alert("Document envoyé au client via Billdu ✅");close()}catch(err){alert("Envoi impossible : "+err.message);b.disabled=false;b.textContent="Envoyer"}})
+}
 function adminTechnicians(){
  const admins=state.profiles.filter(p=>p.role==="admin"),techs=state.profiles.filter(p=>p.role==="tech"),cred=state.lastCredentials;
  const row=p=>'<div class="listrow"><div style="display:flex;gap:10px;align-items:center"><div class="avatar">'+esc(initials(p.name))+'</div><div><strong>'+esc(p.name)+'</strong><span>'+esc(p.email)+'</span><div style="margin-top:5px"><span class="badge">'+(p.role==="admin"?"Administrateur":"Technicien")+'</span> <span class="badge '+(p.active?"done":"warn")+'">'+(p.active?"Actif":"Désactivé")+'</span></div></div></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-soft" data-access-edit="'+p.id+'">Modifier</button><button class="btn '+(p.active?"btn-danger":"btn-soft")+'" data-access-toggle="'+p.id+'">'+(p.active?"Désactiver":"Réactiver")+'</button></div></div>';
@@ -312,7 +405,7 @@ function bindAccessManagement(){
 
 function adminSecurity(){const rows=state.audit.map(a=>'<div class="audititem"><div class="dot"></div><div><strong>'+esc(a.action)+' · '+esc(a.entity_type)+'</strong><div class="muted tiny">'+new Date(a.created_at).toLocaleString("fr-FR")+' · '+esc(a.entity_id||"")+'</div></div></div>').join("");return '<div class="admin-grid"><div class="card panel"><div class="panel-title"><h2>Journal d’activité</h2></div>'+rows+'</div><div class="card panel"><h2>Sécurité V6</h2><div class="listrows"><div class="listrow"><div><strong>Clients protégés</strong><span>Répertoire réservé aux administrateurs</span></div><span class="badge done">Actif</span></div><div class="listrow"><div><strong>Techniciens limités</strong><span>Accès uniquement à leurs interventions</span></div><span class="badge done">Actif</span></div><div class="listrow"><div><strong>Photos & signatures privées</strong><span>Protégées par RLS Supabase</span></div><span class="badge done">Actif</span></div></div></div></div>'}
 function renderAdmin(){
- let body=state.tab==="dashboard"?adminDashboard():state.tab==="clients"?adminClients():state.tab==="interventions"?adminInterventions():state.tab==="planning"?adminPlanning():state.tab==="reports"?adminReports():state.tab==="services"?adminServices():state.tab==="technicians"?adminTechnicians():adminSecurity();
+ let body=state.tab==="dashboard"?adminDashboard():state.tab==="clients"?adminClients():state.tab==="interventions"?adminInterventions():state.tab==="planning"?adminPlanning():state.tab==="reports"?adminReports():state.tab==="services"?adminServices():state.tab==="billdu"?adminBilldu():state.tab==="technicians"?adminTechnicians():adminSecurity();
  $("#app").innerHTML=adminShell(body);
  $("#logout").onclick=async()=>{await sb.auth.signOut();state.user=null;render()};
  $$("[data-tab]").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;renderAdmin()});
@@ -352,7 +445,10 @@ function renderAdmin(){
    $$("[data-search-tab]",gr).forEach(x=>x.onclick=()=>{state.tab=x.dataset.searchTab;renderAdmin()})
  };
  if(state.tab==="services")bindServiceManagement();
+ if(state.tab==="billdu")bindBillduAdmin();
  if(state.tab==="technicians")bindAccessManagement();
+ $("[data-billdu-create]").forEach(b=>b.onclick=()=>{const i=state.interventions.find(x=>x.id===b.dataset.intervention);if(i)showBillduCreateModal(i,b.dataset.billduCreate)});
+ $("[data-billdu-send]").forEach(b=>b.onclick=()=>{const i=state.interventions.find(x=>x.id===b.dataset.intervention);if(i)showBillduSendModal(i)});
  if(state.tab==="planning"){
    $$("[data-plan-view]").forEach(b=>b.onclick=()=>{state.planningView=b.dataset.planView;renderAdmin()});
    const move=dir=>{let d=localDate(state.planningDate);if(state.planningView==="day")d.setDate(d.getDate()+dir);else if(state.planningView==="week")d.setDate(d.getDate()+7*dir);else if(state.planningView==="month")d.setMonth(d.getMonth()+dir);else d.setFullYear(d.getFullYear()+dir);state.planningDate=isoDate(d);renderAdmin()};
@@ -482,7 +578,7 @@ function techPlanning(){
 }
 function techDetail(id){
  const i=state.interventions.find(x=>x.id===id);if(!i)return techPlanning();
- return '<div class="tech-content"><div class="mobile-title"><button class="btn btn-soft" id="backPlanning">‹</button><h2>Détail de l’intervention</h2><span class="badge '+sClass(i.status)+'">'+sLabel(i.status)+'</span></div><div class="card detail-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px"><div><div class="job-time">'+esc(String(i.start_time||"").slice(0,5))+' – '+esc(String(i.end_time||"").slice(0,5))+'</div><h2 style="margin-top:8px">'+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</h2><div class="muted">'+esc(i.address||"")+'</div></div><div class="iconbubble">⌂</div></div><div class="job-actions" style="margin-top:16px"><a class="btn btn-soft" href="tel:'+esc(i.client_phone||"")+'">Appeler</a><button class="btn btn-soft" data-route="'+i.id+'">Itinéraire</button><a class="btn btn-soft" href="sms:'+esc(i.client_phone||"")+'">SMS</a></div></div><div class="card detail-card"><h2>Type d’intervention</h2><div class="detail-line"><b>Prestation</b><span>'+esc(i.service_type||"")+'</span></div></div><div class="card detail-card"><h2>Consignes client</h2><div class="muted small">'+esc(i.notes||"Aucune consigne particulière.")+'</div></div><div class="job-actions" style="margin-bottom:10px"><button class="btn btn-soft" data-status="en_route">En route</button><button class="btn btn-soft" data-status="onsite">Sur place</button><button class="btn btn-soft" data-status="revisit">À revoir</button></div><div style="display:grid;gap:9px"><a class="btn btn-primary" style="width:100%;min-height:50px" href="index.html?report='+encodeURIComponent(i.id)+'">Intervention / traitement · rapport complet</a><a class="btn btn-soft" style="width:100%;min-height:48px;border-color:#d8b36b;background:#fff9ed;color:#8a5a0b" href="index.html?report='+encodeURIComponent(i.id)+'&mode=diagnostic">Diagnostic uniquement · même rapport complet</a></div></div>'
+ return '<div class="tech-content"><div class="mobile-title"><button class="btn btn-soft" id="backPlanning">‹</button><h2>Détail de l’intervention</h2><span class="badge '+sClass(i.status)+'">'+sLabel(i.status)+'</span></div><div class="card detail-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px"><div><div class="job-time">'+esc(String(i.start_time||"").slice(0,5))+' – '+esc(String(i.end_time||"").slice(0,5))+'</div><h2 style="margin-top:8px">'+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</h2><div class="muted">'+esc(i.address||"")+'</div></div><div class="iconbubble">⌂</div></div><div class="job-actions" style="margin-top:16px"><a class="btn btn-soft" href="tel:'+esc(i.client_phone||"")+'">Appeler</a><button class="btn btn-soft" data-route="'+i.id+'">Itinéraire</button><a class="btn btn-soft" href="sms:'+esc(i.client_phone||"")+'">SMS</a></div></div><div class="card detail-card"><h2>Type d’intervention</h2><div class="detail-line"><b>Prestation</b><span>'+esc(i.service_type||"")+'</span></div></div><div class="card detail-card"><h2>Consignes client</h2><div class="muted small">'+esc(i.notes||"Aucune consigne particulière.")+'</div></div><div class="job-actions" style="margin-bottom:10px"><button class="btn btn-soft" data-status="en_route">En route</button><button class="btn btn-soft" data-status="onsite">Sur place</button><button class="btn btn-soft" data-status="revisit">À revoir</button></div><div class="card detail-card" style="margin-bottom:10px"><h2>Devis & facturation Billdu</h2><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button class="btn btn-soft" data-billdu-create="quote" data-intervention="'+i.id+'">Créer un devis</button><button class="btn btn-soft" data-billdu-create="invoice" data-intervention="'+i.id+'">Créer une facture</button></div><button class="btn btn-primary" style="width:100%;margin-top:8px" data-billdu-send data-intervention="'+i.id+'">Envoyer au client</button></div><div style="display:grid;gap:9px"><a class="btn btn-primary" style="width:100%;min-height:50px" href="index.html?report='+encodeURIComponent(i.id)+'">Intervention / traitement · rapport complet</a><a class="btn btn-soft" style="width:100%;min-height:48px;border-color:#d8b36b;background:#fff9ed;color:#8a5a0b" href="index.html?report='+encodeURIComponent(i.id)+'&mode=diagnostic">Diagnostic uniquement · même rapport complet</a></div></div>'
 }
 
 
@@ -522,7 +618,9 @@ function renderTech(){
  $$("[data-report-open]").forEach(b=>b.onclick=()=>{state.techScreen="report:"+b.dataset.reportOpen;renderTech()});
  $$("[data-route]").forEach(b=>b.onclick=()=>{const i=state.interventions.find(x=>x.id===b.dataset.route);if(i)showRouteChoices(i)});
  $$("[data-client-route]").forEach(b=>b.onclick=()=>{const client=state.clients.find(x=>x.id===b.dataset.clientRoute);if(client)showRouteChoices({address:client.billing_address})});
- $$("[data-status]").forEach(b=>b.onclick=async()=>{const id=state.techScreen.split(":")[1];b.disabled=true;const {error}=await sb.rpc("update_intervention_status",{p_intervention_id:id,p_status:b.dataset.status});if(error){b.disabled=false;return alert("Statut impossible : "+error.message)}await loadAll();renderTech()});
+ $("[data-billdu-create]").forEach(b=>b.onclick=()=>{const i=state.interventions.find(x=>x.id===b.dataset.intervention);if(i)showBillduCreateModal(i,b.dataset.billduCreate)});
+ $("[data-billdu-send]").forEach(b=>b.onclick=()=>{const i=state.interventions.find(x=>x.id===b.dataset.intervention);if(i)showBillduSendModal(i)});
+ $("[data-status]").forEach(b=>b.onclick=async()=>{const id=state.techScreen.split(":")[1];b.disabled=true;const {error}=await sb.rpc("update_intervention_status",{p_intervention_id:id,p_status:b.dataset.status});if(error){b.disabled=false;return alert("Statut impossible : "+error.message)}await loadAll();renderTech()});
  if($("#backPlanning"))$("#backPlanning").onclick=()=>{state.techScreen="planning";renderTech()};
  if($("#openReport"))$("#openReport").onclick=()=>{const id=state.techScreen.split(":")[1];state.techScreen="report:"+id;renderTech()};
  if($("#openPdfLegacy"))$("#openPdfLegacy").onclick=()=>{const id=state.techScreen.split(":")[1];location.href="index.html?pdf="+encodeURIComponent(id)};
