@@ -108,7 +108,7 @@ const SUPABASE_KEY="sb_publishable_uv7CV5zG_SLw8VTQKJCpsA_4A_dkgZU";
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=(v="")=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
-let state={user:null,tab:"dashboard",techScreen:"planning",techPeriod:"today",clients:[],interventions:[],profiles:[],audit:[],planningView:"day",planningDate:isoDate(new Date()),lastCredentials:null};
+let state={user:null,tab:"dashboard",techScreen:"planning",techPeriod:"today",clients:[],interventions:[],profiles:[],audit:[],services:[],planningView:"day",planningDate:isoDate(new Date()),lastCredentials:null};
 
 async function loadAll(){
  const {data:{user}}=await sb.auth.getUser(); if(!user){state.user=null;return}
@@ -117,14 +117,16 @@ async function loadAll(){
  const req=[
   sb.from("interventions").select("*, technician:profiles!interventions_technician_id_fkey(name,email)").order("intervention_date",{ascending:false}).order("start_time",{ascending:false}).limit(200),
   sb.from("profiles").select("id,name,email,role,active").order("name"),
-  sb.from("clients").select("*").order("created_at",{ascending:false}).limit(200)
+  sb.from("clients").select("*").order("created_at",{ascending:false}).limit(200),
+  sb.from("service_catalog").select("*").order("sort_order",{ascending:true}).order("name",{ascending:true})
  ];
  if(me.role==="admin")req.push(sb.from("audit_logs").select("*").order("created_at",{ascending:false}).limit(30));
  const res=await Promise.all(req);
  state.interventions=res[0].data||[];
  state.profiles=res[1].data||[];
  state.clients=res[2].data||[];
- state.audit=me.role==="admin"?(res[3]?.data||[]):[];
+ state.services=res[3].data||[];
+ state.audit=me.role==="admin"?(res[4]?.data||[]):[];
 }
 function login(){
  $("#app").innerHTML='<div class="login"><div class="login-card"><div class="login-brand"><div class="brandmark">CN</div><div><div style="font-family:Georgia,serif;font-size:1.35rem">Compagnie des Nuisibles</div><div class="muted">V6 PRO · CRM métier</div></div></div><form id="loginForm"><div class="field"><label>E-mail</label><input name="email" type="email" required></div><div class="field"><label>Code d’accès</label><input name="password" type="password" required></div><button class="btn btn-primary" style="width:100%">Se connecter</button></form></div></div>';
@@ -134,15 +136,15 @@ function initials(n=""){return n.split(" ").filter(Boolean).map(x=>x[0]).join(""
 function sLabel(s){return({todo:"À faire",scheduled:"Planifiée",en_route:"En route",onsite:"Sur place",done:"Terminée",revisit:"À revoir",cancelled:"Annulée"}[s]||s)}
 function sClass(s){return s==="done"?"done":s==="en_route"?"route":s==="onsite"?"onsite":s==="revisit"||s==="cancelled"?"warn":""}
 function adminNav(){
- const items=[["dashboard","⌂","Tableau de bord"],["clients","👥","Clients"],["interventions","▣","Interventions"],["planning","▦","Planning"],["reports","▤","Rapports"],["technicians","◉","Techniciens"],["security","⛨","Sécurité"]];
+ const items=[["dashboard","⌂","Tableau de bord"],["clients","👥","Clients"],["interventions","▣","Interventions"],["planning","▦","Planning"],["reports","▤","Rapports"],["services","◇","Prestations"],["technicians","◉","Techniciens"],["security","⛨","Sécurité"]];
  return items.map(([id,ico,label])=>'<button data-tab="'+id+'" class="'+(state.tab===id?"active":"")+'"><span style="display:inline-block;width:24px">'+ico+'</span>'+label+'</button>').join("")
 }
 function adminShell(content){
  const today=new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
  return '<div class="admin-shell"><aside class="admin-sidebar"><div class="admin-brand"><div class="cn">CN</div><div class="company">COMPAGNIE<br>DES NUISIBLES</div><div class="v6">V6 PRO</div></div><div class="side-nav">'+adminNav()+'</div><div class="side-footer">Des espaces sans nuisibles,<br>des vies plus sereines.</div></aside><section class="admin-main"><div class="admin-top"><div class="searchbox">⌕ <input id="globalSearch" placeholder="Rechercher un client, une intervention, une adresse..."><div id="globalResults" class="hidden" style="position:absolute;left:0;right:0;top:calc(100% + 7px);background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 40px rgba(13,45,33,.16);max-height:320px;overflow:auto;z-index:80"></div></div><div class="admin-user"><div class="avatar">'+esc(initials(state.user.name))+'</div><div><strong>'+esc(state.user.name)+'</strong><div class="muted tiny">Administrateur</div></div><button id="logout" class="btn btn-soft">Déconnexion</button></div></div><div class="mobile-admin-nav">'+adminNav()+'</div><div class="admin-content"><div class="hero-strip"><div><div class="muted tiny" style="letter-spacing:.18em;font-weight:800">COMPAGNIE DES NUISIBLES — V6 PRO</div><h1>'+pageTitle()+'</h1><p>'+pageSubtitle()+'</p></div><div class="hero-quote">Un monde plus sain<br>commence ici.</div></div>'+content+'</div></section></div>'
 }
-function pageTitle(){return({dashboard:"Tableau de bord",clients:"Clients",interventions:"Interventions",planning:"Planning",reports:"Rapports",technicians:"Techniciens",security:"Sécurité"}[state.tab]||"Tableau de bord")}
-function pageSubtitle(){return({dashboard:"Pilotez votre activité et gardez une longueur d’avance sur les nuisibles.",clients:"Votre fichier clients centralisé, réservé à l’administration.",interventions:"Suivez toutes les interventions et leur avancement.",planning:"Organisez les tournées et les rendez-vous de l’équipe.",reports:"Retrouvez les interventions terminées et leurs rapports.",technicians:"Gérez les accès et l’activité de l’équipe terrain.",security:"Contrôle des accès et traçabilité des opérations."}[state.tab]||"")}
+function pageTitle(){return({dashboard:"Tableau de bord",clients:"Clients",interventions:"Interventions",planning:"Planning",reports:"Rapports",services:"Prestations",technicians:"Techniciens",security:"Sécurité"}[state.tab]||"Tableau de bord")}
+function pageSubtitle(){return({dashboard:"Pilotez votre activité et gardez une longueur d’avance sur les nuisibles.",clients:"Votre fichier clients centralisé, réservé à l’administration.",interventions:"Suivez toutes les interventions et leur avancement.",planning:"Organisez les tournées et les rendez-vous de l’équipe.",reports:"Retrouvez les interventions terminées et leurs rapports.",services:"Gérez votre catalogue de prestations pour les devis et factures.",technicians:"Gérez les accès et l’activité de l’équipe terrain.",security:"Contrôle des accès et traçabilité des opérations."}[state.tab]||"")}
 function adminDashboard(){
  const today=isoDate(new Date()),td=localDate(today),yd=new Date(td);yd.setDate(yd.getDate()-1);const yesterday=isoDate(yd);
  const day=state.interventions.filter(i=>i.intervention_date===today),prevDay=state.interventions.filter(i=>i.intervention_date===yesterday);
@@ -209,6 +211,49 @@ function adminReports(){
  const rows=state.interventions.filter(i=>i.status==="done").map(i=>'<tr><td>'+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</td><td>'+esc(i.service_type)+(i.completion_type==="diagnostic_only"?'<div class="muted tiny" style="margin-top:4px">Diagnostic uniquement</div>':'')+'</td><td>'+esc(i.intervention_date)+'</td><td>'+esc(i.technician?.name||"")+'</td><td>'+Number(i.amount||0).toLocaleString("fr-FR")+' €</td><td><a href="index.html?pdf='+encodeURIComponent(i.id)+'" class="btn btn-soft">Voir PDF</a></td></tr>').join("");
  return '<div class="card panel"><div class="panel-title"><h2>Rapports finalisés</h2></div><div class="table-wrap"><table class="crm-table"><thead><tr><th>Client</th><th>Prestation</th><th>Date</th><th>Technicien</th><th>Montant</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
 }
+function adminServices(){
+ const rows=state.services.map(s=>{
+   const opts=s.options||{};
+   const summary=[
+     ...(Array.isArray(opts.treatments)?opts.treatments:[]),
+     ...(Array.isArray(opts.packages)?opts.packages:[]),
+     ...(Array.isArray(opts.methods)?opts.methods:[])
+   ].slice(0,4).join(" · ");
+   return '<div class="listrow"><div style="min-width:0"><strong>'+esc(s.name)+'</strong><span>'+esc(s.category||"Prestation")+'</span>'+(s.default_description?'<div class="muted tiny" style="margin-top:5px">'+esc(s.default_description)+'</div>':'')+(summary?'<div class="muted tiny" style="margin-top:5px">'+esc(summary)+'</div>':'')+'</div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><span class="badge '+(s.active?"done":"warn")+'">'+(s.active?"Active":"Désactivée")+'</span><button class="btn btn-soft" data-service-edit="'+s.id+'">Modifier</button><button class="btn btn-soft" data-service-toggle="'+s.id+'">'+(s.active?"Désactiver":"Réactiver")+'</button><button class="btn btn-danger" data-service-delete="'+s.id+'">Supprimer</button></div></div>'
+ }).join("");
+ return '<div class="admin-grid"><div class="card panel"><div class="panel-title"><div><h2>Ajouter une prestation</h2><p>Tu pourras ensuite l’utiliser pour les devis et factures Billdu.</p></div></div><form id="serviceForm"><input type="hidden" name="id" id="serviceId"><div class="field"><label>Nom de la prestation</label><input name="name" id="serviceName" required placeholder="Ex. Guêpes / frelons"></div><div class="field"><label>Catégorie</label><input name="category" id="serviceCategory" placeholder="Ex. Désinsectisation"></div><div class="field"><label>Descriptif par défaut</label><textarea name="description" id="serviceDescription" placeholder="Texte qui servira de base au devis"></textarea></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" id="saveService">Ajouter la prestation</button><button class="btn btn-soft hidden" type="button" id="cancelServiceEdit">Annuler</button></div></form></div><div class="card panel"><div class="panel-title"><div><h2>Catalogue des prestations</h2><p>'+state.services.length+' prestation'+(state.services.length>1?"s":"")+'</p></div></div>'+(rows||'<div class="muted">Aucune prestation.</div>')+'</div></div>'
+}
+function bindServiceManagement(){
+ const form=$("#serviceForm");if(!form)return;
+ const reset=()=>{form.reset();$("#serviceId").value="";$("#saveService").textContent="Ajouter la prestation";$("#cancelServiceEdit").classList.add("hidden")};
+ $("#cancelServiceEdit").onclick=reset;
+ $$("[data-service-edit]").forEach(b=>b.onclick=()=>{
+   const s=state.services.find(x=>x.id===b.dataset.serviceEdit);if(!s)return;
+   $("#serviceId").value=s.id;$("#serviceName").value=s.name||"";$("#serviceCategory").value=s.category||"";$("#serviceDescription").value=s.default_description||"";$("#saveService").textContent="Enregistrer";$("#cancelServiceEdit").classList.remove("hidden")
+ });
+ $$("[data-service-toggle]").forEach(b=>b.onclick=async()=>{
+   const s=state.services.find(x=>x.id===b.dataset.serviceToggle);if(!s)return;
+   const {error}=await sb.from("service_catalog").update({active:!s.active,updated_at:new Date().toISOString()}).eq("id",s.id);
+   if(error)return alert("Modification impossible : "+error.message);
+   await loadAll();renderAdmin()
+ });
+ $$("[data-service-delete]").forEach(b=>b.onclick=async()=>{
+   const s=state.services.find(x=>x.id===b.dataset.serviceDelete);if(!s)return;
+   if(!confirm("Supprimer la prestation « "+s.name+" » ?"))return;
+   const {error}=await sb.from("service_catalog").delete().eq("id",s.id);
+   if(error)return alert("Suppression impossible : "+error.message);
+   await loadAll();renderAdmin()
+ });
+ form.onsubmit=async e=>{
+   e.preventDefault();const d=Object.fromEntries(new FormData(form));
+   const payload={name:String(d.name||"").trim(),category:String(d.category||"").trim()||null,default_description:String(d.description||"").trim()||null,updated_at:new Date().toISOString()};
+   if(!payload.name)return;
+   const q=d.id?sb.from("service_catalog").update(payload).eq("id",d.id):sb.from("service_catalog").insert(payload);
+   const {error}=await q;
+   if(error)return alert("Enregistrement impossible : "+error.message);
+   await loadAll();renderAdmin()
+ }
+}
 function adminTechnicians(){
  const admins=state.profiles.filter(p=>p.role==="admin"),techs=state.profiles.filter(p=>p.role==="tech"),cred=state.lastCredentials;
  const row=p=>'<div class="listrow"><div style="display:flex;gap:10px;align-items:center"><div class="avatar">'+esc(initials(p.name))+'</div><div><strong>'+esc(p.name)+'</strong><span>'+esc(p.email)+'</span><div style="margin-top:5px"><span class="badge">'+(p.role==="admin"?"Administrateur":"Technicien")+'</span> <span class="badge '+(p.active?"done":"warn")+'">'+(p.active?"Actif":"Désactivé")+'</span></div></div></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-soft" data-access-edit="'+p.id+'">Modifier</button><button class="btn '+(p.active?"btn-danger":"btn-soft")+'" data-access-toggle="'+p.id+'">'+(p.active?"Désactiver":"Réactiver")+'</button></div></div>';
@@ -267,7 +312,7 @@ function bindAccessManagement(){
 
 function adminSecurity(){const rows=state.audit.map(a=>'<div class="audititem"><div class="dot"></div><div><strong>'+esc(a.action)+' · '+esc(a.entity_type)+'</strong><div class="muted tiny">'+new Date(a.created_at).toLocaleString("fr-FR")+' · '+esc(a.entity_id||"")+'</div></div></div>').join("");return '<div class="admin-grid"><div class="card panel"><div class="panel-title"><h2>Journal d’activité</h2></div>'+rows+'</div><div class="card panel"><h2>Sécurité V6</h2><div class="listrows"><div class="listrow"><div><strong>Clients protégés</strong><span>Répertoire réservé aux administrateurs</span></div><span class="badge done">Actif</span></div><div class="listrow"><div><strong>Techniciens limités</strong><span>Accès uniquement à leurs interventions</span></div><span class="badge done">Actif</span></div><div class="listrow"><div><strong>Photos & signatures privées</strong><span>Protégées par RLS Supabase</span></div><span class="badge done">Actif</span></div></div></div></div>'}
 function renderAdmin(){
- let body=state.tab==="dashboard"?adminDashboard():state.tab==="clients"?adminClients():state.tab==="interventions"?adminInterventions():state.tab==="planning"?adminPlanning():state.tab==="reports"?adminReports():state.tab==="technicians"?adminTechnicians():adminSecurity();
+ let body=state.tab==="dashboard"?adminDashboard():state.tab==="clients"?adminClients():state.tab==="interventions"?adminInterventions():state.tab==="planning"?adminPlanning():state.tab==="reports"?adminReports():state.tab==="services"?adminServices():state.tab==="technicians"?adminTechnicians():adminSecurity();
  $("#app").innerHTML=adminShell(body);
  $("#logout").onclick=async()=>{await sb.auth.signOut();state.user=null;render()};
  $$("[data-tab]").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;renderAdmin()});
@@ -306,6 +351,7 @@ function renderAdmin(){
    gr.classList.toggle("hidden",!(ints.length||cls.length));
    $$("[data-search-tab]",gr).forEach(x=>x.onclick=()=>{state.tab=x.dataset.searchTab;renderAdmin()})
  };
+ if(state.tab==="services")bindServiceManagement();
  if(state.tab==="technicians")bindAccessManagement();
  if(state.tab==="planning"){
    $$("[data-plan-view]").forEach(b=>b.onclick=()=>{state.planningView=b.dataset.planView;renderAdmin()});
@@ -319,7 +365,7 @@ function showInterventionModal(){
  const wrap=document.createElement("div");
  wrap.className="modal-backdrop";
  wrap.id="interventionModal";
- wrap.innerHTML='<div class="modal"><div class="modal-head"><div><h2>Nouvelle intervention</h2><div class="muted small">Le client sera créé automatiquement s’il n’existe pas encore.</div></div><button class="btn btn-soft" id="closeInterventionModal">✕</button></div><form id="newInterventionForm"><div class="formgrid2"><div class="field"><label>Nom du client / société</label><input name="client_name" required placeholder="Ex. Mme Dupont ou Hôtel Le Marais"></div><div class="field"><label>Téléphone</label><input name="phone" inputmode="tel" placeholder="06..."></div><div class="field"><label>E-mail</label><input name="email" type="email"></div><div class="field address-wrap"><label>Adresse de l’intervention</label><input id="addressSearch" name="address" autocomplete="off" required placeholder="Commence à écrire l’adresse..."><div id="addressResults" class="address-results hidden"></div></div><div class="field"><label>Date d’intervention</label><input name="intervention_date" type="date" value="'+tomorrow+'" required></div><div class="field"><label>Technicien</label><select name="technician_id" required><option value="">Choisir...</option>'+techs.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join("")+'</select></div><div class="field"><label>Heure de début</label><input id="startTime" name="start_time" type="time" required></div><div class="field"><label>Durée prévue</label><select id="durationMinutes" required><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>1 heure</option><option value="90">1 h 30</option><option value="120">2 heures</option></select><div id="endTimePreview" class="muted tiny" style="margin-top:6px">Heure de fin calculée automatiquement.</div><input id="endTimeHidden" name="end_time" type="hidden"></div><div class="field"><label>Type d’intervention</label><select name="service_type" required><option value="">Choisir...</option><option>Dératisation</option><option>Rats / souris</option><option>Punaises de lit</option><option>Cafards</option><option>Désinsectisation</option><option>Désinfection</option><option>Guêpes / frelons</option><option>Autre</option></select></div><div class="field"><label>Notes / consignes</label><textarea name="notes" placeholder="Digicode, étage, consignes client..."></textarea></div></div><input type="hidden" name="postal_code"><input type="hidden" name="city"><input type="hidden" name="latitude"><input type="hidden" name="longitude"><div class="actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px"><button type="button" class="btn btn-soft" id="cancelIntervention">Annuler</button><button class="btn btn-primary" id="saveIntervention">Créer l’intervention</button></div></form></div>';
+ wrap.innerHTML='<div class="modal"><div class="modal-head"><div><h2>Nouvelle intervention</h2><div class="muted small">Le client sera créé automatiquement s’il n’existe pas encore.</div></div><button class="btn btn-soft" id="closeInterventionModal">✕</button></div><form id="newInterventionForm"><div class="formgrid2"><div class="field"><label>Nom du client / société</label><input name="client_name" required placeholder="Ex. Mme Dupont ou Hôtel Le Marais"></div><div class="field"><label>Téléphone</label><input name="phone" inputmode="tel" placeholder="06..."></div><div class="field"><label>E-mail</label><input name="email" type="email"></div><div class="field address-wrap"><label>Adresse de l’intervention</label><input id="addressSearch" name="address" autocomplete="off" required placeholder="Commence à écrire l’adresse..."><div id="addressResults" class="address-results hidden"></div></div><div class="field"><label>Date d’intervention</label><input name="intervention_date" type="date" value="'+tomorrow+'" required></div><div class="field"><label>Technicien</label><select name="technician_id" required><option value="">Choisir...</option>'+techs.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join("")+'</select></div><div class="field"><label>Heure de début</label><input id="startTime" name="start_time" type="time" required></div><div class="field"><label>Durée prévue</label><select id="durationMinutes" required><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>1 heure</option><option value="90">1 h 30</option><option value="120">2 heures</option></select><div id="endTimePreview" class="muted tiny" style="margin-top:6px">Heure de fin calculée automatiquement.</div><input id="endTimeHidden" name="end_time" type="hidden"></div><div class="field"><label>Type d’intervention</label><select name="service_type" required><option value="">Choisir...</option>'+(state.services.filter(s=>s.active).length?state.services.filter(s=>s.active).map(s=>'<option>'+esc(s.name)+'</option>').join(""):'<option>Dératisation</option><option>Punaises de lit</option><option>Cafards</option><option>Autre</option>')+'</select></div><div class="field"><label>Notes / consignes</label><textarea name="notes" placeholder="Digicode, étage, consignes client..."></textarea></div></div><input type="hidden" name="postal_code"><input type="hidden" name="city"><input type="hidden" name="latitude"><input type="hidden" name="longitude"><div class="actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px"><button type="button" class="btn btn-soft" id="cancelIntervention">Annuler</button><button class="btn btn-primary" id="saveIntervention">Créer l’intervention</button></div></form></div>';
  document.body.appendChild(wrap);
  const close=()=>wrap.remove(); $("#closeInterventionModal").onclick=close;$("#cancelIntervention").onclick=close;wrap.onclick=e=>{if(e.target===wrap)close()};
  const form=$("#newInterventionForm"),input=$("#addressSearch"),results=$("#addressResults");
