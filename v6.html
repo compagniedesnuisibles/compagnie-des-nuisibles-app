@@ -288,7 +288,12 @@ function showInterventionModal(){
    form.latitude.value=Number.isFinite(Number(g[1]))?g[1]:"";
    results.classList.add("hidden")
  };
- const searchAddress=async q=>{\n   const {data,error}=await sb.functions.invoke("address-search",{body:{q}});\n   if(error)throw error;\n   return Array.isArray(data?.features)?data.features:[]\n };\n input.oninput=()=>{
+ const searchAddress=async q=>{
+   const {data,error}=await sb.functions.invoke("address-search",{body:{q}});
+   if(error)throw error;
+   return Array.isArray(data?.features)?data.features:[]
+ };
+ input.oninput=()=>{
    chosen=null;lastFeatures=[];form.postal_code.value="";form.city.value="";form.latitude.value="";form.longitude.value="";
    clearTimeout(timer);
    const q=input.value.trim();
