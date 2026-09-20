@@ -116,11 +116,15 @@ async function loadAll(){
  state.user=me;
  const req=[
   sb.from("interventions").select("*, technician:profiles!interventions_technician_id_fkey(name,email)").order("intervention_date",{ascending:false}).order("start_time",{ascending:false}).limit(200),
-  sb.from("profiles").select("id,name,email,role,active").order("name")
+  sb.from("profiles").select("id,name,email,role,active").order("name"),
+  sb.from("clients").select("*").order("created_at",{ascending:false}).limit(200)
  ];
- if(me.role==="admin"){req.push(sb.from("clients").select("*").order("created_at",{ascending:false}).limit(200));req.push(sb.from("audit_logs").select("*").order("created_at",{ascending:false}).limit(30))}
+ if(me.role==="admin")req.push(sb.from("audit_logs").select("*").order("created_at",{ascending:false}).limit(30));
  const res=await Promise.all(req);
- state.interventions=res[0].data||[];state.profiles=res[1].data||[];state.clients=me.role==="admin"?(res[2]?.data||[]):[];state.audit=me.role==="admin"?(res[3]?.data||[]):[];
+ state.interventions=res[0].data||[];
+ state.profiles=res[1].data||[];
+ state.clients=res[2].data||[];
+ state.audit=me.role==="admin"?(res[3]?.data||[]):[];
 }
 function login(){
  $("#app").innerHTML='<div class="login"><div class="login-card"><div class="login-brand"><div class="brandmark">CN</div><div><div style="font-family:Georgia,serif;font-size:1.35rem">Compagnie des Nuisibles</div><div class="muted">V6 PRO · CRM métier</div></div></div><form id="loginForm"><div class="field"><label>E-mail</label><input name="email" type="email" required></div><div class="field"><label>Code d’accès</label><input name="password" type="password" required></div><button class="btn btn-primary" style="width:100%">Se connecter</button></form></div></div>';
@@ -149,8 +153,9 @@ function adminDashboard(){
  '<div class="bottom-grid"><div class="card audit"><div class="panel-title"><h2>Activité récente</h2></div>'+audits+'</div><div class="card mission"><h3>Des espaces sans nuisibles,<br>des vies plus sereines.</h3><div>✓ Expertise</div><div>✓ Réactivité</div><div>✓ Confiance</div><div>✓ Durabilité</div></div><div class="card chartbox"><div class="panel-title"><h2>Répartition des interventions</h2></div><div class="bars">'+[55,78,62,85,70,92,66].map(h=>'<div class="bar" style="height:'+h+'%"></div>').join("")+'</div><div class="chartlabels"><span>Lun</span><span>Mar</span><span>Mer</span><span>Jeu</span><span>Ven</span><span>Sam</span><span>Dim</span></div></div></div>'
 }
 function adminClients(){
- const rows=state.clients.map(c=>'<tr><td class="clientcell"><strong>'+esc(c.company_name||[c.first_name,c.last_name].filter(Boolean).join(" "))+'</strong><span>'+esc(c.phone||"")+'</span></td><td>'+esc(c.email||"—")+'</td><td>'+esc(c.billing_address||"—")+'</td><td>'+state.interventions.filter(i=>i.client_id===c.id).length+'</td></tr>').join("");
- return '<div class="card panel"><div class="panel-title"><div><h2>Fichier clients</h2><p>Les clients se créent automatiquement quand tu ajoutes une intervention.</p></div><button class="btn btn-primary" data-new-intervention>+ Nouvelle intervention</button></div><div class="table-wrap"><table class="crm-table"><thead><tr><th>Client</th><th>E-mail</th><th>Adresse</th><th>Interventions</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
+ const techs=state.profiles.filter(p=>p.role==="tech"&&p.active);
+ const rows=state.clients.map(c=>'<tr><td class="clientcell"><strong>'+esc(c.company_name||[c.first_name,c.last_name].filter(Boolean).join(" "))+'</strong><span>'+esc(c.phone||"")+'</span></td><td>'+esc(c.email||"—")+'</td><td>'+esc(c.billing_address||"—")+'</td><td>'+state.interventions.filter(i=>i.client_id===c.id).length+'</td><td><select class="client-tech-select" data-client="'+c.id+'" style="min-width:170px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff"><option value="">Non attribué</option>'+techs.map(t=>'<option value="'+t.id+'" '+(c.assigned_technician_id===t.id?"selected":"")+'>'+esc(t.name)+'</option>').join("")+'</select></td></tr>').join("");
+ return '<div class="card panel"><div class="panel-title"><div><h2>Fichier clients</h2><p>Attribue chaque client à un technicien. Le technicien ne voit que les clients qui lui sont attribués.</p></div><button class="btn btn-primary" data-new-intervention>+ Nouvelle intervention</button></div><div class="table-wrap"><table class="crm-table"><thead><tr><th>Client</th><th>E-mail</th><th>Adresse</th><th>Interventions</th><th>Technicien attribué</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
 }
 function adminInterventions(){
  const rows=state.interventions.map(i=>'<tr><td class="clientcell"><strong>'+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</strong><span>'+esc(i.address||"")+'</span></td><td>'+esc(i.service_type)+'</td><td>'+esc(i.intervention_date)+' '+esc(String(i.start_time||"").slice(0,5))+'</td><td>'+esc(i.technician?.name||"")+'</td><td><span class="badge '+sClass(i.status)+'">'+sLabel(i.status)+'</span></td><td><a href="index.html" class="btn btn-soft">'+(i.status==="done"?"Voir PDF":"Ouvrir")+'</a></td></tr>').join("");
@@ -268,12 +273,16 @@ function techReport(id){
  const i=state.interventions.find(x=>x.id===id);if(!i)return techPlanning();
  return '<div class="tech-content"><div class="mobile-title"><button class="btn btn-soft" id="backDetail">‹</button><h2>Intervention en cours</h2><span></span></div><div class="card detail-card"><h2>Preuves d’intervention</h2><div class="photo-strip"><div class="photo-demo"><span>Avant</span></div><div class="photo-demo"><span>Après</span></div></div></div><div class="card detail-card"><h2>Rapport d’intervention</h2><div class="report-grid-mobile"><div class="report-tile"><div class="muted tiny">Montant</div><strong>'+Number(i.amount||0).toLocaleString("fr-FR")+' €</strong></div><div class="report-tile"><div class="muted tiny">Paiement</div><strong>'+esc(i.payment||"À renseigner")+'</strong></div></div><div class="field" style="margin-top:12px"><label>Observations</label><textarea readonly>'+esc(i.report||"Rapport à compléter dans l’interface intervention.")+'</textarea></div><div class="field"><label>Signature client</label><div style="height:110px;border:1px dashed #9dcab6;border-radius:14px;background:#fff;display:grid;place-items:center;font-family:Georgia,serif;font-style:italic;font-size:1.5rem">Signature</div></div><div class="job-actions"><a class="btn btn-primary" href="index.html">Compléter le rapport</a>'+(i.status==="done"?'<a class="btn btn-soft" href="index.html">Voir PDF</a>':'')+'</div></div></div>'
 }
+function techClients(){
+ const cards=state.clients.map(c=>'<div class="card job"><div class="job-main"><div class="iconbubble">👤</div><div style="flex:1"><h3>'+esc(c.company_name||[c.first_name,c.last_name].filter(Boolean).join(" "))+'</h3><p>'+esc(c.billing_address||"")+'<br>'+esc(c.phone||"")+(c.email?'<br>'+esc(c.email):'')+'</p></div></div><div class="job-actions"><a class="btn btn-soft" href="tel:'+esc(c.phone||"")+'">Appeler</a><button class="btn btn-soft" data-client-route="'+c.id+'">Itinéraire</button><span class="btn btn-primary" style="pointer-events:none">Attribué</span></div></div>').join("");
+ return '<div class="tech-content"><div class="mobile-title"><h2>Mes clients</h2><span class="badge done">'+state.clients.length+' attribué'+(state.clients.length>1?'s':'')+'</span></div>'+(cards||'<div class="card detail-card"><div class="muted">Aucun client ne t’est attribué.</div></div>')+'</div>'
+}
 function techHeader(){
  return '<div class="tech-header"><div class="tech-brandrow"><div class="tech-brand"><div class="brandmark">CN</div><div><strong>Compagnie des Nuisibles</strong><div class="muted tiny">V6 PRO</div></div></div><div class="tech-greeting"><div class="avatar">'+esc(initials(state.user.name))+'</div><div><strong>Bonjour '+esc(state.user.name.split(" ")[0])+'</strong><div class="muted tiny">Technicien sur le terrain</div></div></div></div></div>'
 }
 function renderTech(){
- let inner=state.techScreen==="planning"?techPlanning():state.techScreen.startsWith("detail:")?techDetail(state.techScreen.split(":")[1]):techReport(state.techScreen.split(":")[1]);
- $("#app").innerHTML='<div class="tech-app">'+techHeader()+'<div class="tech-screen active">'+inner+'</div><div class="tech-bottom"><button class="active" id="navPlanning">Planning</button><button id="navInterventions">Interventions</button><button id="navReports">Rapports</button><button id="logoutTech">Profil</button></div></div>';
+ let inner=state.techScreen==="planning"?techPlanning():state.techScreen==="clients"?techClients():state.techScreen.startsWith("detail:")?techDetail(state.techScreen.split(":")[1]):techReport(state.techScreen.split(":")[1]);
+ $("#app").innerHTML='<div class="tech-app">'+techHeader()+'<div class="tech-screen active">'+inner+'</div><div class="tech-bottom" style="grid-template-columns:repeat(5,1fr)"><button class="'+(state.techScreen==="planning"?"active":"")+'" id="navPlanning">Planning</button><button id="navInterventions">Interventions</button><button class="'+(state.techScreen==="clients"?"active":"")+'" id="navClients">Clients</button><button id="navReports">Rapports</button><button id="logoutTech">Profil</button></div></div>';
  $("[data-job]").forEach(b=>b.onclick=()=>{state.techScreen="detail:"+b.dataset.job;renderTech()});
  $("[data-route]").forEach(b=>b.onclick=()=>{const i=state.interventions.find(x=>x.id===b.dataset.route);if(i)showRouteChoices(i)});
  if($("#backPlanning"))$("#backPlanning").onclick=()=>{state.techScreen="planning";renderTech()};
@@ -281,6 +290,7 @@ function renderTech(){
  if($("#backDetail"))$("#backDetail").onclick=()=>{const id=state.techScreen.split(":")[1];state.techScreen="detail:"+id;renderTech()};
  $("#navPlanning").onclick=()=>{state.techScreen="planning";renderTech()};
  $("#navInterventions").onclick=()=>{state.techScreen="planning";renderTech()};
+ $("#navClients").onclick=()=>{state.techScreen="clients";renderTech()};
  $("#navReports").onclick=()=>{const done=state.interventions.find(i=>i.status==="done");if(done){state.techScreen="report:"+done.id;renderTech()}};
  $("#logoutTech").onclick=async()=>{await sb.auth.signOut();state.user=null;render()}
 }
