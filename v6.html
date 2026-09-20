@@ -60,6 +60,20 @@ button,input,textarea,select{font:inherit}button{cursor:pointer}
 .listrows{display:grid;gap:9px}.listrow{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #edf2ef}.listrow:last-child{border-bottom:0}.listrow strong{display:block}.listrow span{font-size:.76rem;color:var(--muted)}
 .bottom-grid{display:grid;grid-template-columns:1fr .82fr 1fr;gap:14px;margin-top:14px}.mission{padding:18px;background:linear-gradient(135deg,#063f2c,#0d6d4b);color:#fff;min-height:190px;position:relative;overflow:hidden}.mission:after{content:"";position:absolute;width:220px;height:220px;border-radius:50%;right:-90px;top:-80px;background:radial-gradient(circle,#36a87855,transparent 60%)}.mission h3{font-family:Georgia,serif;font-size:1.45rem;line-height:1.28;margin:0 0 12px}.audit{padding:16px}.audititem{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #edf2ef}.audititem:last-child{border-bottom:0}.dot{width:8px;height:8px;border-radius:50%;background:#24a56c;margin-top:6px}
 .chartbox{padding:16px}.bars{height:110px;display:flex;align-items:flex-end;gap:10px;padding-top:10px}.bar{flex:1;background:linear-gradient(180deg,#28a874,#0e7e57);border-radius:8px 8px 3px 3px;min-width:10px}.chartlabels{display:flex;justify-content:space-between;color:var(--muted);font-size:.7rem;margin-top:7px}
+.plan-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.plan-switch{display:flex;gap:5px;padding:5px;background:#f1f5f3;border:1px solid var(--line);border-radius:13px}
+.plan-switch button{border:0;background:transparent;padding:9px 13px;border-radius:9px;color:var(--muted);font-weight:800}
+.plan-switch button.active{background:#fff;color:var(--green2);box-shadow:0 4px 12px rgba(13,45,33,.08)}
+.plan-nav{display:flex;align-items:center;gap:8px}.plan-date{min-width:220px;text-align:center;font-weight:900}
+.week-board{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:9px;overflow:auto;padding-bottom:5px}
+.week-col{background:#fbfdfc;border:1px solid var(--line);border-radius:14px;padding:10px;min-height:310px}.week-col.today{border-color:#55b88e;box-shadow:0 0 0 2px var(--soft) inset}
+.week-head{font-weight:900;font-size:.82rem;margin-bottom:9px}.week-head span{display:block;color:var(--muted);font-size:.7rem;font-weight:700;margin-top:2px}
+.plan-event{padding:9px;border:1px solid #e4ece8;border-radius:11px;background:#fff;margin-bottom:7px;box-shadow:0 3px 9px rgba(13,45,33,.04)}
+.plan-event strong{display:block;font-size:.79rem}.plan-event .evt-time{color:var(--green2);font-weight:900;font-size:.72rem;margin-bottom:3px}.plan-event small{display:block;color:var(--muted);margin-top:3px}
+.month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px}.month-head{text-align:center;font-size:.72rem;color:var(--muted);font-weight:900;padding:5px}
+.month-day{min-height:115px;border:1px solid var(--line);border-radius:13px;background:#fff;padding:8px;overflow:hidden}.month-day.out{opacity:.35;background:#f8faf9}.month-day.today{border-color:#39a875;box-shadow:0 0 0 2px var(--soft) inset}
+.month-num{font-size:.77rem;font-weight:900;margin-bottom:6px}.month-event{font-size:.67rem;padding:5px 6px;border-radius:8px;background:var(--soft);color:var(--green2);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.year-grid-admin{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.year-month{border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff}.year-month h3{margin:0 0 8px;font-size:.9rem}.mini-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}.mini-cal span{font-size:.62rem;text-align:center;padding:4px 2px;border-radius:6px}.mini-cal .busy{background:var(--soft);color:var(--green2);font-weight:900}
 
 /* TECH MOBILE */
 .tech-app{display:none;min-height:100vh;background:#f5f8f6}
@@ -87,7 +101,7 @@ const SUPABASE_KEY="sb_publishable_uv7CV5zG_SLw8VTQKJCpsA_4A_dkgZU";
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=(v="")=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
-let state={user:null,tab:"dashboard",techScreen:"planning",clients:[],interventions:[],profiles:[],audit:[]};
+let state={user:null,tab:"dashboard",techScreen:"planning",clients:[],interventions:[],profiles:[],audit:[],planningView:"day",planningDate:new Date().toISOString().slice(0,10)};
 
 async function loadAll(){
  const {data:{user}}=await sb.auth.getUser(); if(!user){state.user=null;return}
@@ -135,7 +149,37 @@ function adminInterventions(){
  const rows=state.interventions.map(i=>'<tr><td class="clientcell"><strong>'+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</strong><span>'+esc(i.address||"")+'</span></td><td>'+esc(i.service_type)+'</td><td>'+esc(i.intervention_date)+' '+esc(String(i.start_time||"").slice(0,5))+'</td><td>'+esc(i.technician?.name||"")+'</td><td><span class="badge '+sClass(i.status)+'">'+sLabel(i.status)+'</span></td><td><a href="index.html" class="btn btn-soft">'+(i.status==="done"?"Voir PDF":"Ouvrir")+'</a></td></tr>').join("");
  return '<div class="card panel"><div class="panel-title"><div><h2>Toutes les interventions</h2><p>Suivi opérationnel complet</p></div><a href="index.html" class="btn btn-primary">+ Nouvelle intervention</a></div><div class="table-wrap"><table class="crm-table"><thead><tr><th>Client</th><th>Prestation</th><th>Date</th><th>Technicien</th><th>Statut</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
 }
-function adminPlanning(){return adminInterventions()}
+function isoDate(d){const x=new Date(d);x.setMinutes(x.getMinutes()-x.getTimezoneOffset());return x.toISOString().slice(0,10)}
+function localDate(s){return new Date(s+"T12:00:00")}
+function startOfWeek(d){const x=new Date(d);const n=(x.getDay()+6)%7;x.setDate(x.getDate()-n);return x}
+function planningEvent(i){return '<div class="plan-event"><div class="evt-time">'+esc(String(i.start_time||"").slice(0,5))+' · '+esc(i.technician?.name||"")+'</div><strong>'+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</strong><small>'+esc(i.service_type||"")+'</small><span class="badge '+sClass(i.status)+'" style="margin-top:6px">'+sLabel(i.status)+'</span></div>'}
+function adminPlanning(){
+ const base=localDate(state.planningDate),view=state.planningView,today=isoDate(new Date());
+ let title="",body="";
+ if(view==="day"){
+   title=base.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+   const rows=state.interventions.filter(i=>i.intervention_date===state.planningDate).sort((a,b)=>String(a.start_time).localeCompare(String(b.start_time)));
+   body='<div class="table-wrap"><table class="crm-table"><thead><tr><th>Heure</th><th>Client</th><th>Adresse</th><th>Prestation</th><th>Technicien</th><th>Statut</th></tr></thead><tbody>'+rows.map(i=>'<tr><td><strong>'+esc(String(i.start_time||"").slice(0,5))+'</strong></td><td><strong>'+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</strong></td><td>'+esc(i.address||"")+'</td><td>'+esc(i.service_type||"")+'</td><td>'+esc(i.technician?.name||"")+'</td><td><span class="badge '+sClass(i.status)+'">'+sLabel(i.status)+'</span></td></tr>').join("")+(rows.length?"":'<tr><td colspan="6"><div class="muted">Aucune intervention ce jour.</div></td></tr>')+'</tbody></table></div>';
+ } else if(view==="week"){
+   const start=startOfWeek(base),end=new Date(start);end.setDate(end.getDate()+6);
+   title=start.toLocaleDateString("fr-FR",{day:"numeric",month:"short"})+" — "+end.toLocaleDateString("fr-FR",{day:"numeric",month:"short",year:"numeric"});
+   let cols="";
+   for(let n=0;n<7;n++){const d=new Date(start);d.setDate(d.getDate()+n);const iso=isoDate(d),rows=state.interventions.filter(i=>i.intervention_date===iso).sort((a,b)=>String(a.start_time).localeCompare(String(b.start_time)));cols+='<div class="week-col '+(iso===today?"today":"")+'"><div class="week-head">'+d.toLocaleDateString("fr-FR",{weekday:"short"})+'<span>'+d.toLocaleDateString("fr-FR",{day:"numeric",month:"short"})+' · '+rows.length+' RDV</span></div>'+rows.map(planningEvent).join("")+(rows.length?"":'<div class="muted tiny">Libre</div>')+'</div>'}
+   body='<div class="week-board">'+cols+'</div>';
+ } else if(view==="month"){
+   const y=base.getFullYear(),m=base.getMonth(),first=new Date(y,m,1),gridStart=startOfWeek(first);
+   title=base.toLocaleDateString("fr-FR",{month:"long",year:"numeric"});
+   const heads=["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].map(x=>'<div class="month-head">'+x+'</div>').join("");
+   let cells="";
+   for(let n=0;n<42;n++){const d=new Date(gridStart);d.setDate(d.getDate()+n);const iso=isoDate(d),rows=state.interventions.filter(i=>i.intervention_date===iso).sort((a,b)=>String(a.start_time).localeCompare(String(b.start_time)));cells+='<div class="month-day '+(d.getMonth()!==m?"out ":"")+(iso===today?"today":"")+'"><div class="month-num">'+d.getDate()+(rows.length?' · '+rows.length:"")+'</div>'+rows.slice(0,3).map(i=>'<div class="month-event">'+esc(String(i.start_time||"").slice(0,5))+' '+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</div>').join("")+(rows.length>3?'<div class="muted tiny">+'+(rows.length-3)+' autres</div>':"")+'</div>'}
+   body='<div class="month-grid">'+heads+cells+'</div>';
+ } else {
+   const y=base.getFullYear();title=String(y);let months="";
+   for(let m=0;m<12;m++){const first=new Date(y,m,1),gridStart=startOfWeek(first);let mini="";for(let n=0;n<42;n++){const d=new Date(gridStart);d.setDate(d.getDate()+n);const iso=isoDate(d),busy=state.interventions.some(i=>i.intervention_date===iso);mini+='<span class="'+(busy?"busy ":"")+'" style="'+(d.getMonth()!==m?"opacity:.18":"")+'">'+d.getDate()+'</span>'}months+='<div class="year-month"><h3>'+first.toLocaleDateString("fr-FR",{month:"long"})+'</h3><div class="mini-cal">'+mini+'</div></div>'}
+   body='<div class="year-grid-admin">'+months+'</div>';
+ }
+ return '<div class="card panel"><div class="plan-toolbar"><div class="plan-switch">'+[["day","Jour"],["week","Semaine"],["month","Mois"],["year","Année"]].map(x=>'<button data-plan-view="'+x[0]+'" class="'+(view===x[0]?"active":"")+'">'+x[1]+'</button>').join("")+'</div><div class="plan-nav"><button class="btn btn-soft" id="planPrev">‹</button><div class="plan-date">'+title+'</div><button class="btn btn-soft" id="planNext">›</button><button class="btn btn-soft" id="planToday">Aujourd’hui</button></div><a href="index.html" class="btn btn-primary">+ Nouvelle intervention</a></div>'+body+'</div>'
+}
 function adminReports(){state.interventions=state.interventions;const rows=state.interventions.filter(i=>i.status==="done").map(i=>'<tr><td>'+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</td><td>'+esc(i.service_type)+'</td><td>'+esc(i.intervention_date)+'</td><td>'+esc(i.technician?.name||"")+'</td><td>'+Number(i.amount||0).toLocaleString("fr-FR")+' €</td><td><a href="index.html" class="btn btn-soft">Voir PDF</a></td></tr>').join("");return '<div class="card panel"><div class="panel-title"><h2>Rapports finalisés</h2></div><div class="table-wrap"><table class="crm-table"><thead><tr><th>Client</th><th>Prestation</th><th>Date</th><th>Technicien</th><th>Montant</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'}
 function adminTechnicians(){const rows=state.profiles.filter(p=>p.role==="tech").map(p=>'<div class="listrow"><div style="display:flex;gap:10px;align-items:center"><div class="avatar">'+esc(initials(p.name))+'</div><div><strong>'+esc(p.name)+'</strong><span>'+esc(p.email)+'</span></div></div><span class="badge '+(p.active?"done":"warn")+'">'+(p.active?"Actif":"Désactivé")+'</span></div>').join("");return '<div class="card panel"><div class="panel-title"><h2>Techniciens</h2><a href="index.html" class="btn btn-primary">Gérer les accès</a></div>'+rows+'</div>'}
 function adminSecurity(){const rows=state.audit.map(a=>'<div class="audititem"><div class="dot"></div><div><strong>'+esc(a.action)+' · '+esc(a.entity_type)+'</strong><div class="muted tiny">'+new Date(a.created_at).toLocaleString("fr-FR")+' · '+esc(a.entity_id||"")+'</div></div></div>').join("");return '<div class="admin-grid"><div class="card panel"><div class="panel-title"><h2>Journal d’activité</h2></div>'+rows+'</div><div class="card panel"><h2>Sécurité V6</h2><div class="listrows"><div class="listrow"><div><strong>Clients protégés</strong><span>Répertoire réservé aux administrateurs</span></div><span class="badge done">Actif</span></div><div class="listrow"><div><strong>Techniciens limités</strong><span>Accès uniquement à leurs interventions</span></div><span class="badge done">Actif</span></div><div class="listrow"><div><strong>Photos & signatures privées</strong><span>Protégées par RLS Supabase</span></div><span class="badge done">Actif</span></div></div></div></div>'}
@@ -145,7 +189,12 @@ function renderAdmin(){
  $("#logout").onclick=async()=>{await sb.auth.signOut();state.user=null;render()};
  $$("[data-tab]").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;renderAdmin()});
  if($("#newIntervention"))$("#newIntervention").onclick=()=>location.href="index.html";
- if($("#addClient"))$("#addClient").onclick=()=>showClientForm()
+ if($("#addClient"))$("#addClient").onclick=()=>showClientForm();
+ if(state.tab==="planning"){
+   $("[data-plan-view]").forEach(b=>b.onclick=()=>{state.planningView=b.dataset.planView;renderAdmin()});
+   const move=dir=>{let d=localDate(state.planningDate);if(state.planningView==="day")d.setDate(d.getDate()+dir);else if(state.planningView==="week")d.setDate(d.getDate()+7*dir);else if(state.planningView==="month")d.setMonth(d.getMonth()+dir);else d.setFullYear(d.getFullYear()+dir);state.planningDate=isoDate(d);renderAdmin()};
+   $("#planPrev").onclick=()=>move(-1);$("#planNext").onclick=()=>move(1);$("#planToday").onclick=()=>{state.planningDate=isoDate(new Date());renderAdmin()}
+ }
 }
 function showClientForm(){
  $("#clientForm").innerHTML='<div class="card" style="padding:14px;box-shadow:none;background:#f8fbf9;margin-bottom:14px"><form id="cf"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div class="field"><label>Prénom</label><input name="first_name"></div><div class="field"><label>Nom</label><input name="last_name" required></div><div class="field"><label>Société</label><input name="company_name"></div><div class="field"><label>Téléphone</label><input name="phone"></div><div class="field"><label>E-mail</label><input name="email" type="email"></div><div class="field"><label>Adresse</label><input name="billing_address"></div></div><button class="btn btn-primary">Créer le client</button></form></div>';
