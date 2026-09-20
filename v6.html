@@ -241,7 +241,7 @@ function showInterventionModal(){
    clearTimeout(timer);const q=input.value.trim();if(q.length<3){results.classList.add("hidden");results.innerHTML="";return}
    timer=setTimeout(async()=>{
      try{
-       const res=await fetch("https://api-adresse.data.gouv.fr/search/?limit=6&q="+encodeURIComponent(q));
+       const res=await fetch("https://data.geopf.fr/geocodage/search/?limit=6&q="+encodeURIComponent(q));
        const json=await res.json();const feats=json.features||[];
        results.innerHTML=feats.map((f,idx)=>'<div class="address-option" data-addr="'+idx+'"><strong>'+esc(f.properties.label||"")+'</strong><span>'+esc([f.properties.postcode,f.properties.city].filter(Boolean).join(" "))+'</span></div>').join("");
        results.classList.toggle("hidden",!feats.length);
