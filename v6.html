@@ -289,11 +289,38 @@ function showInterventionModal(){
    results.classList.add("hidden")
  };
  const searchAddress=async q=>{
-   const url=SUPABASE_URL+"/functions/v1/address-search?q="+encodeURIComponent(q);
-   const res=await fetch(url,{headers:{"Accept":"application/json","apikey":SUPABASE_KEY}});
-   if(!res.ok)throw new Error("Service adresse indisponible");
-   const json=await res.json();
-   return Array.isArray(json.features)?json.features:[]
+   // 1) Proxy backend (IGN + fallbacks)
+   try{
+     const url=SUPABASE_URL+"/functions/v1/address-search?q="+encodeURIComponent(q);
+     const res=await fetch(url,{headers:{"Accept":"application/json","apikey":SUPABASE_KEY}});
+     if(res.ok){
+       const json=await res.json();
+       if(Array.isArray(json.features)&&json.features.length)return json.features
+     }
+   }catch(_){}
+   // 2) Secours direct Photon / OpenStreetMap
+   try{
+     const u="https://photon.komoot.io/api/?lang=fr&limit=8&q="+encodeURIComponent(q);
+     const res=await fetch(u,{headers:{"Accept":"application/json"}});
+     if(res.ok){
+       const json=await res.json();
+       return (Array.isArray(json.features)?json.features:[]).map(f=>{
+         const p=f.properties||{},g=f.geometry?.coordinates||[];
+         return {
+           type:"Feature",
+           geometry:f.geometry||null,
+           properties:{
+             label:[p.housenumber,p.street,p.postcode,p.city].filter(Boolean).join(" ")||p.name||q,
+             name:p.street||p.name||"",
+             postcode:p.postcode||"",
+             city:p.city||p.locality||"",
+             type:p.type||"address"
+           }
+         }
+       })
+     }
+   }catch(_){}
+   return []
  };
  input.oninput=()=>{
    chosen=null;lastFeatures=[];form.postal_code.value="";form.city.value="";form.latitude.value="";form.longitude.value="";
@@ -305,12 +332,13 @@ function showInterventionModal(){
        const feats=await searchAddress(q);lastFeatures=feats;
        results.innerHTML=feats.length
          ? feats.map((f,idx)=>'<div class="address-option" data-addr="'+idx+'"><strong>'+esc(f.properties?.label||f.properties?.name||"Adresse")+'</strong><span>'+esc([f.properties?.postcode,f.properties?.city||f.properties?.municipality].filter(Boolean).join(" "))+'</span></div>').join("")
-         : '<div class="address-option"><strong>Aucune proposition exacte</strong><span>Tu peux quand même garder l’adresse saisie.</span></div>';
+         : '<div class="address-option" id="useTypedAddress"><strong>Utiliser cette adresse</strong><span>'+esc(q)+' — enregistrer telle quelle</span></div>';
        $("[data-addr]",results).forEach(el=>el.onclick=()=>fillAddress(feats[Number(el.dataset.addr)]));
      }catch(err){
        console.error("Adresse:",err);
        results.classList.remove("hidden");
-       results.innerHTML='<div class="address-option"><strong>Recherche d’adresse indisponible</strong><span>Tu peux quand même enregistrer l’intervention avec l’adresse saisie.</span></div>'
+       results.innerHTML='<div class="address-option" id="useTypedAddress"><strong>Utiliser cette adresse</strong><span>'+esc(q)+' — enregistrer telle quelle</span></div>';
+       $("#useTypedAddress",results).onclick=()=>{chosen={properties:{label:q,postcode:"",city:""},geometry:null};input.value=q;results.classList.add("hidden")}
      }
    },250)
  };
