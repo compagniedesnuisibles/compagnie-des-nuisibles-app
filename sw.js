@@ -1,4 +1,4 @@
-const CACHE="cdn-planning-v32";
+const CACHE="cdn-planning-v33";
 const CORE=["./","manifest.json","icon.svg"];
 self.addEventListener("install",event=>{
   self.skipWaiting();
@@ -12,6 +12,8 @@ self.addEventListener("activate",event=>{
 });
 self.addEventListener("fetch",event=>{
   const req=event.request;
+  const url=new URL(req.url);
+  if(url.pathname.endsWith("/v6.html")) return;
   if(req.mode==="navigate"){
     event.respondWith(
       fetch(req).then(res=>{
