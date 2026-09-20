@@ -108,7 +108,7 @@ const SUPABASE_KEY="sb_publishable_uv7CV5zG_SLw8VTQKJCpsA_4A_dkgZU";
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=(v="")=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
-let state={user:null,tab:"dashboard",techScreen:"planning",techPeriod:"today",clients:[],interventions:[],profiles:[],audit:[],planningView:"day",planningDate:isoDate(new Date())};
+let state={user:null,tab:"dashboard",techScreen:"planning",techPeriod:"today",clients:[],interventions:[],profiles:[],audit:[],planningView:"day",planningDate:isoDate(new Date()),lastCredentials:null};
 
 async function loadAll(){
  const {data:{user}}=await sb.auth.getUser(); if(!user){state.user=null;return}
@@ -209,7 +209,62 @@ function adminReports(){
  const rows=state.interventions.filter(i=>i.status==="done").map(i=>'<tr><td>'+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</td><td>'+esc(i.service_type)+(i.completion_type==="diagnostic_only"?'<div class="muted tiny" style="margin-top:4px">Diagnostic uniquement</div>':'')+'</td><td>'+esc(i.intervention_date)+'</td><td>'+esc(i.technician?.name||"")+'</td><td>'+Number(i.amount||0).toLocaleString("fr-FR")+' €</td><td><a href="index.html?pdf='+encodeURIComponent(i.id)+'" class="btn btn-soft">Voir PDF</a></td></tr>').join("");
  return '<div class="card panel"><div class="panel-title"><h2>Rapports finalisés</h2></div><div class="table-wrap"><table class="crm-table"><thead><tr><th>Client</th><th>Prestation</th><th>Date</th><th>Technicien</th><th>Montant</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
 }
-function adminTechnicians(){const rows=state.profiles.filter(p=>p.role==="tech").map(p=>'<div class="listrow"><div style="display:flex;gap:10px;align-items:center"><div class="avatar">'+esc(initials(p.name))+'</div><div><strong>'+esc(p.name)+'</strong><span>'+esc(p.email)+'</span></div></div><span class="badge '+(p.active?"done":"warn")+'">'+(p.active?"Actif":"Désactivé")+'</span></div>').join("");return '<div class="card panel"><div class="panel-title"><h2>Techniciens</h2><a href="index.html" class="btn btn-primary">Gérer les accès</a></div>'+rows+'</div>'}
+function adminTechnicians(){
+ const admins=state.profiles.filter(p=>p.role==="admin"),techs=state.profiles.filter(p=>p.role==="tech"),cred=state.lastCredentials;
+ const row=p=>'<div class="listrow"><div style="display:flex;gap:10px;align-items:center"><div class="avatar">'+esc(initials(p.name))+'</div><div><strong>'+esc(p.name)+'</strong><span>'+esc(p.email)+'</span><div style="margin-top:5px"><span class="badge">'+(p.role==="admin"?"Administrateur":"Technicien")+'</span> <span class="badge '+(p.active?"done":"warn")+'">'+(p.active?"Actif":"Désactivé")+'</span></div></div></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-soft" data-access-edit="'+p.id+'">Modifier</button><button class="btn '+(p.active?"btn-danger":"btn-soft")+'" data-access-toggle="'+p.id+'">'+(p.active?"Désactiver":"Réactiver")+'</button></div></div>';
+ const credentialCard=cred?'<div class="card panel" style="border:2px solid #1aa36f;background:#f4fbf8;margin-bottom:14px"><div class="panel-title"><div><h2>Accès créé</h2><p>Identifiants prêts à envoyer</p></div><button class="btn btn-soft" id="closeAccessCredentials">Fermer</button></div><div class="formgrid2"><div class="field"><label>E-mail</label><input readonly id="accessCredEmail" value="'+esc(cred.email)+'"></div><div class="field"><label>Code d’accès</label><input readonly id="accessCredPassword" value="'+esc(cred.password)+'"></div></div><div class="field"><label>Lien de connexion V6</label><input readonly id="accessCredLink" value="'+esc(cred.link)+'"></div><button class="btn btn-primary" id="copyAccessCredentials">Copier les accès</button></div>':"";
+ return credentialCard+'<div class="admin-grid"><div class="card panel"><div class="panel-title"><div><h2>Créer / modifier un accès</h2><p>Tout se gère maintenant directement dans la V6.</p></div></div><form id="accessForm"><input type="hidden" id="accessUserId" name="id"><div class="field"><label>Nom</label><input id="accessName" name="name" required></div><div class="field"><label>Rôle</label><select id="accessRole" name="role"><option value="tech">Technicien</option><option value="admin">Administrateur</option></select></div><div class="field"><label>E-mail</label><input id="accessEmail" name="email" type="email" required></div><div class="field"><label>Code d’accès</label><input id="accessPassword" name="password" type="password" minlength="6" placeholder="6 caractères minimum"></div><div class="muted tiny" style="margin-bottom:12px">En modification, laisse le code vide pour conserver le mot de passe actuel.</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" id="saveAccess">Créer l’accès</button><button type="button" class="btn btn-soft hidden" id="cancelAccessEdit">Annuler</button></div></form></div><div class="right-stack"><div class="card panel"><div class="panel-title"><h2>Techniciens</h2></div>'+(techs.length?techs.map(row).join(""):'<div class="muted">Aucun technicien.</div>')+'</div><div class="card panel"><div class="panel-title"><h2>Administrateurs</h2></div>'+(admins.length?admins.map(row).join(""):'<div class="muted">Aucun administrateur.</div>')+'</div></div></div>'
+}
+async function callManageUserV6(body){
+ const {data:{session}}=await sb.auth.getSession();
+ if(!session?.access_token)throw new Error("Session expirée");
+ const res=await fetch(SUPABASE_URL+"/functions/v1/manage-user",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+session.access_token,"apikey":SUPABASE_KEY},body:JSON.stringify(body)});
+ const data=await res.json();
+ if(!res.ok)throw new Error(data.error||"Erreur utilisateur");
+ return data
+}
+async function copyTextV6(v){
+ try{await navigator.clipboard.writeText(v);return true}catch(_){
+  const ta=document.createElement("textarea");ta.value=v;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();const ok=document.execCommand("copy");ta.remove();return ok
+ }
+}
+function bindAccessManagement(){
+ const form=$("#accessForm");if(!form)return;
+ const reset=()=>{form.reset();$("#accessUserId").value="";$("#saveAccess").textContent="Créer l’accès";$("#cancelAccessEdit").classList.add("hidden");$("#accessPassword").required=true};
+ $("#accessPassword").required=true;
+ $("#cancelAccessEdit").onclick=reset;
+ $$("[data-access-edit]").forEach(b=>b.onclick=()=>{
+   const u=state.profiles.find(x=>x.id===b.dataset.accessEdit);if(!u)return;
+   $("#accessUserId").value=u.id;$("#accessName").value=u.name||"";$("#accessRole").value=u.role;$("#accessEmail").value=u.email||"";$("#accessPassword").value="";$("#accessPassword").required=false;$("#saveAccess").textContent="Enregistrer";$("#cancelAccessEdit").classList.remove("hidden")
+ });
+ $$("[data-access-toggle]").forEach(b=>b.onclick=async()=>{
+   const u=state.profiles.find(x=>x.id===b.dataset.accessToggle);if(!u)return;
+   if(u.id===state.user.id)return alert("Tu ne peux pas désactiver ton propre compte.");
+   if(!confirm((u.active?"Désactiver ":"Réactiver ")+(u.name||u.email)+" ?"))return;
+   try{await callManageUserV6({action:"update",id:u.id,active:!u.active});await loadAll();renderAdmin()}catch(err){alert(err.message)}
+ });
+ form.onsubmit=async e=>{
+   e.preventDefault();
+   const d=Object.fromEntries(new FormData(form));
+   if(!d.id&&String(d.password||"").length<6)return alert("Le code doit contenir au moins 6 caractères.");
+   try{
+     if(d.id){
+       await callManageUserV6({action:"update",id:d.id,name:d.name,role:d.role,email:d.email,password:d.password||undefined})
+     }else{
+       await callManageUserV6({action:"create",name:d.name,role:d.role,email:d.email,password:d.password});
+       state.lastCredentials={name:d.name,role:d.role,email:d.email.trim().toLowerCase(),password:d.password,link:location.origin+location.pathname+"?v=36"}
+     }
+     await loadAll();renderAdmin()
+   }catch(err){alert(err.message)}
+ };
+ if($("#closeAccessCredentials"))$("#closeAccessCredentials").onclick=()=>{state.lastCredentials=null;renderAdmin()};
+ if($("#copyAccessCredentials"))$("#copyAccessCredentials").onclick=async()=>{
+   const x=state.lastCredentials;if(!x)return;
+   const msg="Compagnie des Nuisibles — Accès "+(x.role==="admin"?"administrateur":"technicien")+"\n\nLien : "+x.link+"\nE-mail : "+x.email+"\nCode d’accès : "+x.password;
+   const b=$("#copyAccessCredentials"),old=b.textContent;if(await copyTextV6(msg)){b.textContent="Copié ✓";setTimeout(()=>b.textContent=old,1400)}
+ }
+}
+
 function adminSecurity(){const rows=state.audit.map(a=>'<div class="audititem"><div class="dot"></div><div><strong>'+esc(a.action)+' · '+esc(a.entity_type)+'</strong><div class="muted tiny">'+new Date(a.created_at).toLocaleString("fr-FR")+' · '+esc(a.entity_id||"")+'</div></div></div>').join("");return '<div class="admin-grid"><div class="card panel"><div class="panel-title"><h2>Journal d’activité</h2></div>'+rows+'</div><div class="card panel"><h2>Sécurité V6</h2><div class="listrows"><div class="listrow"><div><strong>Clients protégés</strong><span>Répertoire réservé aux administrateurs</span></div><span class="badge done">Actif</span></div><div class="listrow"><div><strong>Techniciens limités</strong><span>Accès uniquement à leurs interventions</span></div><span class="badge done">Actif</span></div><div class="listrow"><div><strong>Photos & signatures privées</strong><span>Protégées par RLS Supabase</span></div><span class="badge done">Actif</span></div></div></div></div>'}
 function renderAdmin(){
  let body=state.tab==="dashboard"?adminDashboard():state.tab==="clients"?adminClients():state.tab==="interventions"?adminInterventions():state.tab==="planning"?adminPlanning():state.tab==="reports"?adminReports():state.tab==="technicians"?adminTechnicians():adminSecurity();
@@ -251,6 +306,7 @@ function renderAdmin(){
    gr.classList.toggle("hidden",!(ints.length||cls.length));
    $$("[data-search-tab]",gr).forEach(x=>x.onclick=()=>{state.tab=x.dataset.searchTab;renderAdmin()})
  };
+ if(state.tab==="technicians")bindAccessManagement();
  if(state.tab==="planning"){
    $$("[data-plan-view]").forEach(b=>b.onclick=()=>{state.planningView=b.dataset.planView;renderAdmin()});
    const move=dir=>{let d=localDate(state.planningDate);if(state.planningView==="day")d.setDate(d.getDate()+dir);else if(state.planningView==="week")d.setDate(d.getDate()+7*dir);else if(state.planningView==="month")d.setMonth(d.getMonth()+dir);else d.setFullYear(d.getFullYear()+dir);state.planningDate=isoDate(d);renderAdmin()};
