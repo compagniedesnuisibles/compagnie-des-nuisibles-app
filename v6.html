@@ -263,10 +263,19 @@ function showInterventionModal(){
  const wrap=document.createElement("div");
  wrap.className="modal-backdrop";
  wrap.id="interventionModal";
- wrap.innerHTML='<div class="modal"><div class="modal-head"><div><h2>Nouvelle intervention</h2><div class="muted small">Le client sera créé automatiquement s’il n’existe pas encore.</div></div><button class="btn btn-soft" id="closeInterventionModal">✕</button></div><form id="newInterventionForm"><div class="formgrid2"><div class="field"><label>Nom du client / société</label><input name="client_name" required placeholder="Ex. Mme Dupont ou Hôtel Le Marais"></div><div class="field"><label>Téléphone</label><input name="phone" inputmode="tel" placeholder="06..."></div><div class="field"><label>E-mail</label><input name="email" type="email"></div><div class="field address-wrap"><label>Adresse de l’intervention</label><input id="addressSearch" name="address" autocomplete="off" required placeholder="Commence à écrire l’adresse..."><div id="addressResults" class="address-results hidden"></div></div><div class="field"><label>Date d’intervention</label><input name="intervention_date" type="date" value="'+tomorrow+'" required></div><div class="field"><label>Technicien</label><select name="technician_id" required><option value="">Choisir...</option>'+techs.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join("")+'</select></div><div class="field"><label>Heure début</label><input name="start_time" type="time" required></div><div class="field"><label>Heure fin</label><input name="end_time" type="time" required></div><div class="field"><label>Type d’intervention</label><select name="service_type" required><option value="">Choisir...</option><option>Dératisation</option><option>Rats / souris</option><option>Punaises de lit</option><option>Cafards</option><option>Désinsectisation</option><option>Désinfection</option><option>Guêpes / frelons</option><option>Autre</option></select></div><div class="field"><label>Notes / consignes</label><textarea name="notes" placeholder="Digicode, étage, consignes client..."></textarea></div></div><input type="hidden" name="postal_code"><input type="hidden" name="city"><input type="hidden" name="latitude"><input type="hidden" name="longitude"><div class="actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px"><button type="button" class="btn btn-soft" id="cancelIntervention">Annuler</button><button class="btn btn-primary" id="saveIntervention">Créer l’intervention</button></div></form></div>';
+ wrap.innerHTML='<div class="modal"><div class="modal-head"><div><h2>Nouvelle intervention</h2><div class="muted small">Le client sera créé automatiquement s’il n’existe pas encore.</div></div><button class="btn btn-soft" id="closeInterventionModal">✕</button></div><form id="newInterventionForm"><div class="formgrid2"><div class="field"><label>Nom du client / société</label><input name="client_name" required placeholder="Ex. Mme Dupont ou Hôtel Le Marais"></div><div class="field"><label>Téléphone</label><input name="phone" inputmode="tel" placeholder="06..."></div><div class="field"><label>E-mail</label><input name="email" type="email"></div><div class="field address-wrap"><label>Adresse de l’intervention</label><input id="addressSearch" name="address" autocomplete="off" required placeholder="Commence à écrire l’adresse..."><div id="addressResults" class="address-results hidden"></div></div><div class="field"><label>Date d’intervention</label><input name="intervention_date" type="date" value="'+tomorrow+'" required></div><div class="field"><label>Technicien</label><select name="technician_id" required><option value="">Choisir...</option>'+techs.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join("")+'</select></div><div class="field"><label>Heure de début</label><input id="startTime" name="start_time" type="time" required></div><div class="field"><label>Durée prévue</label><select id="durationMinutes" required><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>1 h</option><option value="90">1 h 30</option><option value="120">2 h</option><option value="180">3 h</option></select><div id="endTimePreview" class="muted tiny" style="margin-top:6px">Heure de fin calculée automatiquement.</div><input id="endTimeHidden" name="end_time" type="hidden"></div><div class="field"><label>Type d’intervention</label><select name="service_type" required><option value="">Choisir...</option><option>Dératisation</option><option>Rats / souris</option><option>Punaises de lit</option><option>Cafards</option><option>Désinsectisation</option><option>Désinfection</option><option>Guêpes / frelons</option><option>Autre</option></select></div><div class="field"><label>Notes / consignes</label><textarea name="notes" placeholder="Digicode, étage, consignes client..."></textarea></div></div><input type="hidden" name="postal_code"><input type="hidden" name="city"><input type="hidden" name="latitude"><input type="hidden" name="longitude"><div class="actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px"><button type="button" class="btn btn-soft" id="cancelIntervention">Annuler</button><button class="btn btn-primary" id="saveIntervention">Créer l’intervention</button></div></form></div>';
  document.body.appendChild(wrap);
  const close=()=>wrap.remove(); $("#closeInterventionModal").onclick=close;$("#cancelIntervention").onclick=close;wrap.onclick=e=>{if(e.target===wrap)close()};
  const form=$("#newInterventionForm"),input=$("#addressSearch"),results=$("#addressResults");
+ const startTime=$("#startTime"),durationMinutes=$("#durationMinutes"),endTimeHidden=$("#endTimeHidden"),endTimePreview=$("#endTimePreview");
+ const updateEndTime=()=>{
+   const v=startTime.value;if(!v){endTimeHidden.value="";endTimePreview.textContent="Heure de fin calculée automatiquement.";return}
+   const [h,m]=v.split(":").map(Number),mins=h*60+m+Number(durationMinutes.value||60),end=((mins%1440)+1440)%1440;
+   const eh=String(Math.floor(end/60)).padStart(2,"0"),em=String(end%60).padStart(2,"0");
+   endTimeHidden.value=eh+":"+em;
+   endTimePreview.textContent="Fin prévue à "+eh+":"+em;
+ };
+ startTime.oninput=updateEndTime;durationMinutes.onchange=updateEndTime;
  let timer=null,chosen=null,lastFeatures=[];
  const fillAddress=f=>{
    if(!f)return;
@@ -280,8 +289,14 @@ function showInterventionModal(){
    results.classList.add("hidden")
  };
  const searchAddress=async q=>{
-   const url="https://data.geopf.fr/geocodage/search?q="+encodeURIComponent(q)+"&autocomplete=true&limit=6&type=housenumber";
-   const res=await fetch(url,{headers:{"Accept":"application/json"}});
+   const {data:{session}}=await sb.auth.getSession();
+   if(!session?.access_token)throw new Error("Session expirée");
+   const url=SUPABASE_URL+"/functions/v1/address-search?q="+encodeURIComponent(q);
+   const res=await fetch(url,{headers:{
+     "Accept":"application/json",
+     "Authorization":"Bearer "+session.access_token,
+     "apikey":SUPABASE_KEY
+   }});
    if(!res.ok)throw new Error("Service adresse indisponible");
    const json=await res.json();
    return Array.isArray(json.features)?json.features:[]
@@ -308,9 +323,11 @@ function showInterventionModal(){
  form.onsubmit=async e=>{
    e.preventDefault();
    const btn=$("#saveIntervention");
+   updateEndTime();
    const rawAddress=input.value.trim();
    if(!rawAddress){alert("Renseigne l’adresse de l’intervention.");input.focus();return}
    if(!form.technician_id.value){alert("Choisis le technicien attribué.");form.technician_id.focus();return}
+   if(!startTime.value||!endTimeHidden.value){alert("Choisis simplement l’heure de début.");startTime.focus();return}
    btn.disabled=true;btn.textContent="Création...";
    try{
      if(!chosen){
