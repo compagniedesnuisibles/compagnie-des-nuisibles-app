@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b6f4c">
+<title>Compagnie des Nuisibles — V6 PRO</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#f3f6f5;--card:#fff;--ink:#10231b;--muted:#6b7c74;--line:#dfe8e3;--green:#0f8a5f;--green2:#086342;--soft:#eaf7f1;--red:#b42318;--amber:#a86613;--shadow:0 14px 34px rgba(16,35,27,.07)}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;background:linear-gradient(180deg,#f8faf9,#f2f6f4);color:var(--ink)}
+button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:100vh}.topbar{position:sticky;top:0;z-index:40;height:72px;background:rgba(255,255,255,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 22px}.brand{display:flex;align-items:center;gap:12px}.logo{width:44px;height:44px;border-radius:14px;background:linear-gradient(145deg,#19a873,#086342);display:grid;place-items:center;color:#fff;font-weight:900}.brand strong{display:block}.muted{color:var(--muted);font-size:.84rem}.userbox{display:flex;align-items:center;gap:10px}.shell{display:grid;grid-template-columns:248px 1fr;min-height:calc(100vh - 72px)}.sidebar{padding:20px 14px;border-right:1px solid var(--line);background:#fff}.nav{display:grid;gap:6px}.nav button{border:0;background:transparent;text-align:left;padding:12px 14px;border-radius:12px;font-weight:800;color:#52645b}.nav button.active{background:linear-gradient(135deg,#0f8a5f,#0b6f4c);color:#fff;box-shadow:0 8px 18px rgba(15,138,95,.18)}.main{padding:28px;min-width:0}.head{display:flex;justify-content:space-between;gap:14px;align-items:center;margin-bottom:20px}.head h1{margin:0;font-size:1.7rem}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:0;border-radius:11px;padding:11px 14px;font-weight:800}.primary{background:linear-gradient(135deg,#119669,#0b724c);color:#fff}.soft{background:#fff;border:1px solid var(--line);color:var(--ink)}.danger{background:#fff0ef;color:var(--red);border:1px solid #ffd8d4}.grid{display:grid;gap:14px}.kpis{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:18px}.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:var(--shadow)}.kpi span{font-size:.76rem;font-weight:800;color:var(--muted);text-transform:uppercase}.kpi strong{display:block;font-size:1.8rem;margin-top:6px}.kpi small{color:var(--muted)}.split{grid-template-columns:1.4fr .6fr}.search{width:min(380px,100%);padding:11px 13px;border:1px solid var(--line);border-radius:12px;background:#fff}.table{width:100%;border-collapse:collapse}.table th,.table td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:top}.table th{font-size:.74rem;color:var(--muted);text-transform:uppercase}.badge{display:inline-block;padding:5px 8px;border-radius:999px;font-size:.73rem;font-weight:800;background:#eef3f0;color:#51665c}.done{background:var(--soft);color:var(--green2)}.warn{background:#fff4df;color:#8b5a12}.dangerbadge{background:#fff0ef;color:var(--red)}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field label{display:block;font-size:.8rem;font-weight:800;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;min-height:44px}.field textarea{min-height:90px}.sectiontitle{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.sectiontitle h2{margin:0;font-size:1.05rem}.activity{display:grid;gap:10px}.activity .row{padding:12px;border:1px solid var(--line);border-radius:12px}.empty{padding:30px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:14px}.login{min-height:100vh;display:grid;place-items:center;padding:18px;background:radial-gradient(circle at top right,#e7f7ef,transparent 35%),#f5f8f6}.login .card{width:min(440px,100%);padding:24px}.mobilebar{display:none}
+@media(max-width:980px){.shell{grid-template-columns:1fr}.sidebar{display:none}.main{padding:18px}.kpis{grid-template-columns:repeat(2,1fr)}.split{grid-template-columns:1fr}.mobilebar{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);z-index:50;padding:7px env(safe-area-inset-right) calc(7px + env(safe-area-inset-bottom)) env(safe-area-inset-left)}.mobilebar button{border:0;background:transparent;padding:9px 4px;font-size:.72rem;font-weight:800;color:#607068}.mobilebar button.active{color:var(--green2)}body{padding-bottom:72px}}
+@media(max-width:640px){.topbar{padding:0 12px}.brand .muted{display:none}.main{padding:14px}.head{align-items:flex-start;flex-direction:column}.kpis{grid-template-columns:1fr 1fr}.formgrid{grid-template-columns:1fr}.table{font-size:.85rem}.table th:nth-child(4),.table td:nth-child(4){display:none}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const SUPABASE_URL="https://fmfarfysmhddviezjwvp.supabase.co";
+const SUPABASE_KEY="sb_publishable_uv7CV5zG_SLw8VTQKJCpsA_4A_dkgZU";
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=(v="")=>String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+let state={user:null,tab:"dashboard",clients:[],interventions:[],profiles:[],contracts:[],products:[],audit:[],query:""};
+
+async function loadAll(){
+ const {data:{user}}=await sb.auth.getUser(); if(!user){state.user=null;return}
+ const {data:me,error:meErr}=await sb.from("profiles").select("*").eq("id",user.id).single(); if(meErr||!me||!me.active){await sb.auth.signOut();state.user=null;return}
+ state.user=me;
+ const req=[
+  sb.from("interventions").select("*, technician:profiles!interventions_technician_id_fkey(name,email), client:clients(id,first_name,last_name,company_name,phone,email)").order("intervention_date",{ascending:false}).limit(200),
+  sb.from("clients").select("*").order("created_at",{ascending:false}).limit(200),
+  sb.from("profiles").select("id,name,email,role,active").order("name"),
+  sb.from("products").select("*").order("name"),
+  sb.from("contracts").select("*, client:clients(first_name,last_name,company_name)").order("created_at",{ascending:false})
+ ];
+ if(me.role==="admin")req.push(sb.from("audit_logs").select("*").order("created_at",{ascending:false}).limit(50));
+ const res=await Promise.all(req);
+ state.interventions=res[0].data||[];state.clients=res[1].data||[];state.profiles=res[2].data||[];state.products=res[3].data||[];state.contracts=res[4].data||[];state.audit=res[5]?.data||[];
+}
+function statusLabel(s){return({todo:"À faire",scheduled:"Planifiée",en_route:"En route",onsite:"Sur place",done:"Terminée",revisit:"À revoir",cancelled:"Annulée"}[s]||s)}
+function statusClass(s){return s==="done"?"done":s==="revisit"||s==="todo"?"warn":s==="cancelled"?"dangerbadge":""}
+function login(){
+ $("#app").innerHTML='<div class="login"><div class="card"><div class="brand" style="margin-bottom:18px"><div class="logo">CN</div><div><strong>Compagnie des Nuisibles</strong><div class="muted">V6 PRO · CRM métier</div></div></div><form id="loginForm"><div class="field"><label>E-mail</label><input name="email" type="email" required></div><div class="field" style="margin-top:12px"><label>Code d’accès</label><input name="password" type="password" required></div><button class="btn primary" style="width:100%;margin-top:16px">Se connecter</button></form></div></div>';
+ $("#loginForm").onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));const {error}=await sb.auth.signInWithPassword({email:d.email,password:d.password});if(error)return alert(error.message);await loadAll();render()}
+}
+function navItems(){
+ const admin=[["dashboard","Tableau de bord"],["clients","Clients"],["interventions","Interventions"],["contracts","Contrats"],["products","Produits"],["security","Sécurité"]];
+ const tech=[["dashboard","Aujourd’hui"],["interventions","Mes interventions"],["clients","Clients"]];
+ return state.user.role==="admin"?admin:tech
+}
+function layout(content,title,sub,actions=""){
+ const items=navItems(),nav=items.map(x=>'<button data-tab="'+x[0]+'" class="'+(state.tab===x[0]?"active":"")+'">'+x[1]+'</button>').join("");
+ $("#app").innerHTML='<div class="app"><div class="topbar"><div class="brand"><div class="logo">CN</div><div><strong>Compagnie des Nuisibles</strong><div class="muted">V6 PRO</div></div></div><div class="userbox"><div><strong>'+esc(state.user.name)+'</strong><div class="muted">'+(state.user.role==="admin"?"Administrateur":"Technicien")+'</div></div><button class="btn soft" id="logout">Déconnexion</button></div></div><div class="shell"><aside class="sidebar"><div class="nav">'+nav+'</div></aside><main class="main"><div class="head"><div><h1>'+title+'</h1><div class="muted">'+sub+'</div></div><div class="actions">'+actions+'</div></div>'+content+'</main></div><div class="mobilebar">'+nav+'</div></div>';
+ $("#logout").onclick=async()=>{await sb.auth.signOut();state.user=null;render()};
+ $$("[data-tab]").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;render()})
+}
+function dashboard(){
+ const today=new Date().toISOString().slice(0,10),todayRows=state.interventions.filter(i=>i.intervention_date===today),done=todayRows.filter(i=>i.status==="done"),revenue=done.reduce((s,i)=>s+(Number(i.amount)||0),0),revisit=state.interventions.filter(i=>i.status==="revisit"||((i.passage||1)===2&&i.status!=="done")).length,unpaid=state.interventions.filter(i=>i.status==="done"&&i.payment==="Non payé").length;
+ const recent=state.interventions.slice(0,8).map(i=>'<tr><td>'+esc(i.client?.company_name||[i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</td><td>'+esc(i.service_type)+'</td><td>'+esc(i.intervention_date)+'</td><td>'+esc(i.technician?.name||"")+'</td><td><span class="badge '+statusClass(i.status)+'">'+statusLabel(i.status)+'</span></td></tr>').join("");
+ const content='<div class="grid kpis"><div class="card kpi"><span>Interventions du jour</span><strong>'+todayRows.length+'</strong><small>'+todayRows.filter(i=>i.status!=="done").length+' restantes</small></div><div class="card kpi"><span>CA du jour</span><strong>'+revenue.toLocaleString("fr-FR")+' €</strong><small>rapports terminés</small></div><div class="card kpi"><span>À revoir / 2e passages</span><strong>'+revisit+'</strong><small>suivis à traiter</small></div><div class="card kpi"><span>Impayés</span><strong>'+unpaid+'</strong><small>interventions terminées</small></div></div><div class="grid split"><div class="card"><div class="sectiontitle"><h2>Activité récente</h2><button class="btn soft" data-tab="interventions">Voir tout</button></div><div style="overflow:auto"><table class="table"><thead><tr><th>Client</th><th>Prestation</th><th>Date</th><th>Technicien</th><th>Statut</th></tr></thead><tbody>'+recent+'</tbody></table></div></div><div class="card"><div class="sectiontitle"><h2>Équipe</h2></div><div class="activity">'+state.profiles.filter(p=>p.active).map(p=>'<div class="row"><strong>'+esc(p.name)+'</strong><div class="muted">'+(p.role==="admin"?"Administrateur":"Technicien")+' · '+esc(p.email)+'</div></div>').join("")+'</div></div></div>';
+ layout(content,state.user.role==="admin"?"Tableau de bord":"Mon planning","Vue opérationnelle en temps réel",'<button class="btn primary" data-new-intervention>+ Intervention</button>');
+ $$("[data-new-intervention]").forEach(b=>b.onclick=()=>{location.href="index.html"})
+}
+function clients(){
+ const q=state.query.toLowerCase(),rows=state.clients.filter(c=>!q||[c.first_name,c.last_name,c.company_name,c.phone,c.email].join(" ").toLowerCase().includes(q));
+ const body=rows.length?rows.map(c=>{const n=c.company_name||[c.first_name,c.last_name].filter(Boolean).join(" ");const count=state.interventions.filter(i=>i.client_id===c.id).length;return '<tr><td><strong>'+esc(n)+'</strong><div class="muted">'+esc(c.phone||"")+'</div></td><td>'+esc(c.email||"—")+'</td><td>'+count+'</td><td>'+esc(c.billing_address||"—")+'</td></tr>'}).join(""):'<tr><td colspan="4"><div class="empty">Aucun client</div></td></tr>';
+ const content='<div class="card"><div class="sectiontitle"><input class="search" id="clientSearch" placeholder="Rechercher nom, téléphone, e-mail..." value="'+esc(state.query)+'"><button class="btn primary" id="newClient">+ Nouveau client</button></div><div id="clientFormWrap"></div><div style="overflow:auto"><table class="table"><thead><tr><th>Client</th><th>E-mail</th><th>Interventions</th><th>Adresse</th></tr></thead><tbody>'+body+'</tbody></table></div></div>';
+ layout(content,"Clients","Historique centralisé par client et par site");
+ $("#clientSearch").oninput=e=>{state.query=e.target.value;clients()};
+ if(state.user.role==="admin")$("#newClient").onclick=()=>showClientForm()
+}
+function showClientForm(){
+ $("#clientFormWrap").innerHTML='<div class="card" style="box-shadow:none;background:#f8fbf9"><div class="sectiontitle"><h2>Nouveau client</h2></div><form id="clientForm"><div class="formgrid"><div class="field"><label>Prénom</label><input name="first_name"></div><div class="field"><label>Nom</label><input name="last_name" required></div><div class="field"><label>Société</label><input name="company_name"></div><div class="field"><label>Téléphone</label><input name="phone"></div><div class="field"><label>E-mail</label><input name="email" type="email"></div><div class="field"><label>Adresse</label><input name="billing_address"></div></div><div class="actions" style="margin-top:12px"><button class="btn primary">Créer le client</button><button type="button" class="btn soft" id="cancelClient">Annuler</button></div></form></div>';
+ $("#cancelClient").onclick=()=>$("#clientFormWrap").innerHTML="";
+ $("#clientForm").onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));const {error}=await sb.from("clients").insert(d);if(error)return alert(error.message);await loadAll();clients()}
+}
+function interventions(){
+ const rows=state.interventions.map(i=>'<tr><td><strong>'+esc(i.client?.company_name||[i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</strong><div class="muted">'+esc(i.address||"")+'</div></td><td>'+esc(i.service_type)+'</td><td>'+esc(i.intervention_date)+' '+esc(String(i.start_time||"").slice(0,5))+'</td><td>'+esc(i.technician?.name||"")+'</td><td><span class="badge '+statusClass(i.status)+'">'+statusLabel(i.status)+'</span></td><td>'+(i.status==="done"?'<a class="btn soft" href="index.html">Voir PDF</a>':'<a class="btn soft" href="index.html">Ouvrir</a>')+'</td></tr>').join("");
+ const content='<div class="card"><div style="overflow:auto"><table class="table"><thead><tr><th>Client</th><th>Prestation</th><th>Date</th><th>Technicien</th><th>Statut</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+ layout(content,"Interventions","Suivi terrain, statuts et rapports",'<a class="btn primary" href="index.html">+ Nouvelle intervention</a>')
+}
+function contracts(){
+ if(state.user.role!=="admin"){state.tab="dashboard";return dashboard()}
+ const rows=state.contracts.map(c=>'<tr><td><strong>'+esc(c.name)+'</strong><div class="muted">'+esc(c.client?.company_name||[c.client?.first_name,c.client?.last_name].filter(Boolean).join(" "))+'</div></td><td>'+esc(c.service_type||"—")+'</td><td>'+esc(c.frequency||"—")+'</td><td>'+esc(c.start_date||"—")+'</td><td><span class="badge '+(c.active?"done":"")+'">'+(c.active?"Actif":"Inactif")+'</span></td></tr>').join("");
+ layout('<div class="card"><div style="overflow:auto"><table class="table"><thead><tr><th>Contrat</th><th>Prestation</th><th>Fréquence</th><th>Début</th><th>Statut</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>',"Contrats","Restaurants, syndics, bureaux et passages récurrents",'<button class="btn primary" id="newContract">+ Contrat</button>');
+ $("#newContract").onclick=()=>alert("Module de création de contrat prêt côté base. L’écran de création complet arrive dans la prochaine étape de V6.")
+}
+function products(){
+ const rows=state.products.map(p=>'<tr><td><strong>'+esc(p.name)+'</strong></td><td>'+esc(p.category||"—")+'</td><td>'+esc(p.active_ingredient||"—")+'</td><td>'+esc(p.amm_number||"—")+'</td><td>'+esc(p.dosage||"—")+'</td></tr>').join("");
+ layout('<div class="card"><div style="overflow:auto"><table class="table"><thead><tr><th>Produit</th><th>Catégorie</th><th>Matière active</th><th>N° AMM</th><th>Dosage</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>',"Produits & biocides","Catalogue métier pour alimenter automatiquement les rapports")
+}
+function security(){
+ if(state.user.role!=="admin"){state.tab="dashboard";return dashboard()}
+ const rows=state.audit.map(a=>'<div class="row"><strong>'+esc(a.action)+' · '+esc(a.entity_type)+'</strong><div class="muted">'+new Date(a.created_at).toLocaleString("fr-FR")+' · '+esc(a.entity_id||"")+'</div></div>').join("");
+ layout('<div class="grid split"><div class="card"><div class="sectiontitle"><h2>Journal d’activité</h2></div><div class="activity">'+(rows||'<div class="empty">Aucune activité</div>')+'</div></div><div class="card"><h2 style="margin-top:0">Sécurité V6</h2><div class="activity"><div class="row"><strong>Accès par rôle</strong><div class="muted">Admin complet · technicien limité à ses dossiers</div></div><div class="row"><strong>Fichiers privés</strong><div class="muted">Photos et signatures protégées par RLS</div></div><div class="row"><strong>Traçabilité</strong><div class="muted">Journal des modifications d’interventions</div></div></div></div></div>',"Sécurité","Contrôle des accès et traçabilité")
+}
+function render(){
+ if(!state.user)return login();
+ if(state.tab==="dashboard")return dashboard();
+ if(state.tab==="clients")return clients();
+ if(state.tab==="interventions")return interventions();
+ if(state.tab==="contracts")return contracts();
+ if(state.tab==="products")return products();
+ if(state.tab==="security")return security()
+}
+(async()=>{await loadAll();render()})();
+</script>
+</body>
+</html>
