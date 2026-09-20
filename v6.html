@@ -29,15 +29,18 @@ async function loadAll(){
  const {data:me,error:meErr}=await sb.from("profiles").select("*").eq("id",user.id).single(); if(meErr||!me||!me.active){await sb.auth.signOut();state.user=null;return}
  state.user=me;
  const req=[
-  sb.from("interventions").select("*, technician:profiles!interventions_technician_id_fkey(name,email), client:clients(id,first_name,last_name,company_name,phone,email)").order("intervention_date",{ascending:false}).limit(200),
-  sb.from("clients").select("*").order("created_at",{ascending:false}).limit(200),
-  sb.from("profiles").select("id,name,email,role,active").order("name"),
-  sb.from("products").select("*").order("name"),
-  sb.from("contracts").select("*, client:clients(first_name,last_name,company_name)").order("created_at",{ascending:false})
+  sb.from("interventions").select("*, technician:profiles!interventions_technician_id_fkey(name,email)").order("intervention_date",{ascending:false}).limit(200),
+  sb.from("profiles").select("id,name,email,role,active").order("name")
  ];
- if(me.role==="admin")req.push(sb.from("audit_logs").select("*").order("created_at",{ascending:false}).limit(50));
+ if(me.role==="admin"){
+  req.push(sb.from("clients").select("*").order("created_at",{ascending:false}).limit(200));
+  req.push(sb.from("audit_logs").select("*").order("created_at",{ascending:false}).limit(50));
+ }
  const res=await Promise.all(req);
- state.interventions=res[0].data||[];state.clients=res[1].data||[];state.profiles=res[2].data||[];state.products=res[3].data||[];state.contracts=res[4].data||[];state.audit=res[5]?.data||[];
+ state.interventions=res[0].data||[];
+ state.profiles=res[1].data||[];
+ state.clients=me.role==="admin"?(res[2]?.data||[]):[];
+ state.audit=me.role==="admin"?(res[3]?.data||[]):[];
 }
 function statusLabel(s){return({todo:"À faire",scheduled:"Planifiée",en_route:"En route",onsite:"Sur place",done:"Terminée",revisit:"À revoir",cancelled:"Annulée"}[s]||s)}
 function statusClass(s){return s==="done"?"done":s==="revisit"||s==="todo"?"warn":s==="cancelled"?"dangerbadge":""}
@@ -46,8 +49,8 @@ function login(){
  $("#loginForm").onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));const {error}=await sb.auth.signInWithPassword({email:d.email,password:d.password});if(error)return alert(error.message);await loadAll();render()}
 }
 function navItems(){
- const admin=[["dashboard","Tableau de bord"],["clients","Clients"],["interventions","Interventions"],["contracts","Contrats"],["products","Produits"],["security","Sécurité"]];
- const tech=[["dashboard","Aujourd’hui"],["interventions","Mes interventions"],["clients","Clients"]];
+ const admin=[["dashboard","Tableau de bord"],["clients","Clients"],["interventions","Interventions"],["security","Sécurité"]];
+ const tech=[["dashboard","Aujourd’hui"],["interventions","Mes interventions"]];
  return state.user.role==="admin"?admin:tech
 }
 function layout(content,title,sub,actions=""){
@@ -58,12 +61,13 @@ function layout(content,title,sub,actions=""){
 }
 function dashboard(){
  const today=new Date().toISOString().slice(0,10),todayRows=state.interventions.filter(i=>i.intervention_date===today),done=todayRows.filter(i=>i.status==="done"),revenue=done.reduce((s,i)=>s+(Number(i.amount)||0),0),revisit=state.interventions.filter(i=>i.status==="revisit"||((i.passage||1)===2&&i.status!=="done")).length,unpaid=state.interventions.filter(i=>i.status==="done"&&i.payment==="Non payé").length;
- const recent=state.interventions.slice(0,8).map(i=>'<tr><td>'+esc(i.client?.company_name||[i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</td><td>'+esc(i.service_type)+'</td><td>'+esc(i.intervention_date)+'</td><td>'+esc(i.technician?.name||"")+'</td><td><span class="badge '+statusClass(i.status)+'">'+statusLabel(i.status)+'</span></td></tr>').join("");
+ const recent=state.interventions.slice(0,8).map(i=>'<tr><td>'+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</td><td>'+esc(i.service_type)+'</td><td>'+esc(i.intervention_date)+'</td><td>'+esc(i.technician?.name||"")+'</td><td><span class="badge '+statusClass(i.status)+'">'+statusLabel(i.status)+'</span></td></tr>').join("");
  const content='<div class="grid kpis"><div class="card kpi"><span>Interventions du jour</span><strong>'+todayRows.length+'</strong><small>'+todayRows.filter(i=>i.status!=="done").length+' restantes</small></div><div class="card kpi"><span>CA du jour</span><strong>'+revenue.toLocaleString("fr-FR")+' €</strong><small>rapports terminés</small></div><div class="card kpi"><span>À revoir / 2e passages</span><strong>'+revisit+'</strong><small>suivis à traiter</small></div><div class="card kpi"><span>Impayés</span><strong>'+unpaid+'</strong><small>interventions terminées</small></div></div><div class="grid split"><div class="card"><div class="sectiontitle"><h2>Activité récente</h2><button class="btn soft" data-tab="interventions">Voir tout</button></div><div style="overflow:auto"><table class="table"><thead><tr><th>Client</th><th>Prestation</th><th>Date</th><th>Technicien</th><th>Statut</th></tr></thead><tbody>'+recent+'</tbody></table></div></div><div class="card"><div class="sectiontitle"><h2>Équipe</h2></div><div class="activity">'+state.profiles.filter(p=>p.active).map(p=>'<div class="row"><strong>'+esc(p.name)+'</strong><div class="muted">'+(p.role==="admin"?"Administrateur":"Technicien")+' · '+esc(p.email)+'</div></div>').join("")+'</div></div></div>';
  layout(content,state.user.role==="admin"?"Tableau de bord":"Mon planning","Vue opérationnelle en temps réel",'<button class="btn primary" data-new-intervention>+ Intervention</button>');
  $$("[data-new-intervention]").forEach(b=>b.onclick=()=>{location.href="index.html"})
 }
 function clients(){
+ if(state.user.role!=="admin"){state.tab="dashboard";return dashboard()}
  const q=state.query.toLowerCase(),rows=state.clients.filter(c=>!q||[c.first_name,c.last_name,c.company_name,c.phone,c.email].join(" ").toLowerCase().includes(q));
  const body=rows.length?rows.map(c=>{const n=c.company_name||[c.first_name,c.last_name].filter(Boolean).join(" ");const count=state.interventions.filter(i=>i.client_id===c.id).length;return '<tr><td><strong>'+esc(n)+'</strong><div class="muted">'+esc(c.phone||"")+'</div></td><td>'+esc(c.email||"—")+'</td><td>'+count+'</td><td>'+esc(c.billing_address||"—")+'</td></tr>'}).join(""):'<tr><td colspan="4"><div class="empty">Aucun client</div></td></tr>';
  const content='<div class="card"><div class="sectiontitle"><input class="search" id="clientSearch" placeholder="Rechercher nom, téléphone, e-mail..." value="'+esc(state.query)+'"><button class="btn primary" id="newClient">+ Nouveau client</button></div><div id="clientFormWrap"></div><div style="overflow:auto"><table class="table"><thead><tr><th>Client</th><th>E-mail</th><th>Interventions</th><th>Adresse</th></tr></thead><tbody>'+body+'</tbody></table></div></div>';
@@ -77,7 +81,7 @@ function showClientForm(){
  $("#clientForm").onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));const {error}=await sb.from("clients").insert(d);if(error)return alert(error.message);await loadAll();clients()}
 }
 function interventions(){
- const rows=state.interventions.map(i=>'<tr><td><strong>'+esc(i.client?.company_name||[i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</strong><div class="muted">'+esc(i.address||"")+'</div></td><td>'+esc(i.service_type)+'</td><td>'+esc(i.intervention_date)+' '+esc(String(i.start_time||"").slice(0,5))+'</td><td>'+esc(i.technician?.name||"")+'</td><td><span class="badge '+statusClass(i.status)+'">'+statusLabel(i.status)+'</span></td><td>'+(i.status==="done"?'<a class="btn soft" href="index.html">Voir PDF</a>':'<a class="btn soft" href="index.html">Ouvrir</a>')+'</td></tr>').join("");
+ const rows=state.interventions.map(i=>'<tr><td><strong>'+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+'</strong><div class="muted">'+esc(i.address||"")+(state.user.role==="admin"&&i.client_phone?' · '+esc(i.client_phone):'')+'</div></td><td>'+esc(i.service_type)+'</td><td>'+esc(i.intervention_date)+' '+esc(String(i.start_time||"").slice(0,5))+'</td><td>'+esc(i.technician?.name||"")+'</td><td><span class="badge '+statusClass(i.status)+'">'+statusLabel(i.status)+'</span></td><td>'+(i.status==="done"?'<a class="btn soft" href="index.html">Voir PDF</a>':'<a class="btn soft" href="index.html">Ouvrir</a>')+'</td></tr>').join("");
  const content='<div class="card"><div style="overflow:auto"><table class="table"><thead><tr><th>Client</th><th>Prestation</th><th>Date</th><th>Technicien</th><th>Statut</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
  layout(content,"Interventions","Suivi terrain, statuts et rapports",'<a class="btn primary" href="index.html">+ Nouvelle intervention</a>')
 }
@@ -101,8 +105,6 @@ function render(){
  if(state.tab==="dashboard")return dashboard();
  if(state.tab==="clients")return clients();
  if(state.tab==="interventions")return interventions();
- if(state.tab==="contracts")return contracts();
- if(state.tab==="products")return products();
  if(state.tab==="security")return security()
 }
 (async()=>{await loadAll();render()})();
