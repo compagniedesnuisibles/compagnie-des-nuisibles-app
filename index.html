@@ -550,7 +550,24 @@ function startRealtime(){
 async function initApp(){
  try{
   const {data:{session}}=await sb.auth.getSession();
-  if(session){await loadData();startRealtime()}
+  if(session){
+   await loadData();startRealtime();
+   const qs=new URLSearchParams(location.search),reportId=qs.get("report"),pdfId=qs.get("pdf");
+   if(reportId&&state.appts.some(a=>a.id===reportId)){await report(reportId);return}
+   if(pdfId){
+    const a=state.appts.find(x=>x.id===pdfId);
+    if(a){
+     try{
+      await loadMedia(a);
+      $("#app").innerHTML=shell("Rapport PDF",'<div class="card"><div class="muted">Préparation du rapport PDF…</div></div>');
+      $("#logout").onclick=logout;
+      const url=generateReportPdf(a,null,"view");
+      openPdfModal(url,"Rapport · "+([a.clientFirstName,a.clientLastName].filter(Boolean).join(" ")||a.client||"Client"));
+      return
+     }catch(err){console.error(err);alert("PDF impossible : "+(err?.message||err))}
+    }
+   }
+  }
  }catch(e){console.error(e)}
  render()
 }
