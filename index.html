@@ -509,7 +509,7 @@ function dbToAppt(r){
   clientPhone:r.client_phone||"",clientEmail:r.client_email||"",address:r.address||"",type:r.service_type||"",
   technician:tech.name||"",techEmail:tech.email||"",technicianId:r.technician_id,notes:r.notes||"",
   status:r.status||"todo",report:r.report||"",payment:r.payment||"",amount:r.amount==null?"":String(r.amount),
-  passage:r.passage||1,parentId:r.parent_id||"",signaturePath:r.signature_path||"",photosBefore:[],photosAfter:[],signature:""
+  passage:r.passage||1,parentId:r.parent_id||"",completionType:r.completion_type||"treatment",signaturePath:r.signature_path||"",photosBefore:[],photosAfter:[],signature:""
  };
 }
 function apptPayload(d){
@@ -552,8 +552,8 @@ async function initApp(){
   const {data:{session}}=await sb.auth.getSession();
   if(session){
    await loadData();startRealtime();
-   const qs=new URLSearchParams(location.search),reportId=qs.get("report"),pdfId=qs.get("pdf");
-   if(reportId&&state.appts.some(a=>a.id===reportId)){await report(reportId);return}
+   const qs=new URLSearchParams(location.search),reportId=qs.get("report"),pdfId=qs.get("pdf"),reportMode=qs.get("mode")||"";
+   if(reportId&&state.appts.some(a=>a.id===reportId)){await report(reportId,reportMode);return}
    if(pdfId){
     const a=state.appts.find(x=>x.id===pdfId);
     if(a){
@@ -760,10 +760,10 @@ async function loadMedia(a){
   else a.signature=src
  }
 }
-async function report(id){
+async function report(id,mode=""){
  const a=state.appts.find(x=>x.id===id);if(!a)return;try{await loadMedia(a)}catch(e){console.error(e)}
- const passage=a.passage||1,before=a.photosBefore||[],after=a.photosAfter||[];
- $("#app").innerHTML=shell("Rapport technicien",'<div class="report-head"><div class="muted">INTERVENTION · PASSAGE '+passage+'</div><h2 style="margin:5px 0 6px">'+esc([a.clientFirstName,a.clientLastName].filter(Boolean).join(" ")||a.client)+'</h2><div>'+esc(a.type)+' · '+esc(a.date)+' · '+esc(a.start)+'-'+esc(a.end)+'</div><div class="muted" style="margin-top:5px">'+esc(a.address)+(a.clientPhone?' · '+esc(a.clientPhone):"")+'</div></div><div class="card"><form id="reportForm"><div class="report-grid"><div><div class="field"><label>Montant de l’intervention TTC (€)</label><input id="amount" type="number" min="0" step="0.01" value="'+esc(a.amount||"")+'"></div><div class="field"><label>Mode de paiement</label><select id="payment"><option value="">Choisir</option>'+["Carte bancaire","Espèces","Virement","Chèque","Non payé"].map(v=>'<option '+(a.payment===v?"selected":"")+'>'+v+'</option>').join("")+'</select></div><div class="field"><label>Rapport d’intervention</label><textarea id="reportText" required>'+esc(a.report||"")+'</textarea></div></div><div><div class="photo-box"><label>Photos avant</label><input id="photosBefore" type="file" accept="image/*" multiple><div id="beforePreview" class="previews">'+before.map(src=>'<img src="'+src+'">').join("")+'</div></div><div class="photo-box" style="margin-top:12px"><label>Photos après</label><input id="photosAfter" type="file" accept="image/*" multiple><div id="afterPreview" class="previews">'+after.map(src=>'<img src="'+src+'">').join("")+'</div></div></div></div>'+(passage===1?'<div class="followup"><label style="display:flex;align-items:center;gap:10px"><input id="needSecond" type="checkbox" style="width:22px;height:22px;min-height:auto"> Programmer un 2e passage</label><div id="secondFields" style="display:none;margin-top:14px"><div class="grid grid2"><div class="field"><label>Date</label><input id="secondDate" type="date" min="'+today()+'"></div><div class="field"><label>Heure</label><input id="secondTime" type="time" value="'+esc(a.start)+'"></div></div></div></div>':"")+'<div class="field"><label>Signature du client</label><canvas id="sig"></canvas><button id="clearSig" type="button" class="btn btn-soft" style="margin-top:8px">Effacer</button></div><div class="notice">Le rapport, les photos et la signature sont sauvegardés dans la V5.</div><div class="actions"><button id="validateReport" type="button" class="btn btn-primary">Valider le rapport</button><button id="back" type="button" class="btn btn-soft">Retour</button></div></form></div>');
+ const diagnosticMode=mode==="diagnostic"||a.completionType==="diagnostic_only",passage=a.passage||1,before=a.photosBefore||[],after=a.photosAfter||[];
+ $("#app").innerHTML=shell("Rapport technicien",'<div class="report-head"><div class="muted">'+(diagnosticMode?"DIAGNOSTIC UNIQUEMENT":"INTERVENTION · PASSAGE "+passage)+'</div><h2 style="margin:5px 0 6px">'+esc([a.clientFirstName,a.clientLastName].filter(Boolean).join(" ")||a.client)+'</h2><div>'+esc(a.type)+' · '+esc(a.date)+' · '+esc(a.start)+'-'+esc(a.end)+'</div><div class="muted" style="margin-top:5px">'+esc(a.address)+(a.clientPhone?' · '+esc(a.clientPhone):"")+'</div></div><div class="card"><form id="reportForm"><div class="report-grid"><div><div class="field"><label>Montant de l’intervention TTC (€)</label><input id="amount" type="number" min="0" step="0.01" value="'+esc(a.amount||"")+'"></div><div class="field"><label>Mode de paiement</label><select id="payment"><option value="">Choisir</option>'+["Carte bancaire","Espèces","Virement","Chèque","Non payé"].map(v=>'<option '+(a.payment===v?"selected":"")+'>'+v+'</option>').join("")+'</select></div><div class="field"><label>Rapport d’intervention</label><textarea id="reportText" required>'+esc(a.report||"")+'</textarea></div></div><div><div class="photo-box"><label>Photos avant</label><input id="photosBefore" type="file" accept="image/*" multiple><div id="beforePreview" class="previews">'+before.map(src=>'<img src="'+src+'">').join("")+'</div></div><div class="photo-box" style="margin-top:12px"><label>Photos après</label><input id="photosAfter" type="file" accept="image/*" multiple><div id="afterPreview" class="previews">'+after.map(src=>'<img src="'+src+'">').join("")+'</div></div></div></div>'+(!diagnosticMode&&passage===1?'<div class="followup"><label style="display:flex;align-items:center;gap:10px"><input id="needSecond" type="checkbox" style="width:22px;height:22px;min-height:auto"> Programmer un 2e passage</label><div id="secondFields" style="display:none;margin-top:14px"><div class="grid grid2"><div class="field"><label>Date</label><input id="secondDate" type="date" min="'+today()+'"></div><div class="field"><label>Heure</label><input id="secondTime" type="time" value="'+esc(a.start)+'"></div></div></div></div>':"")+'<div class="field"><label>Signature du client</label><canvas id="sig"></canvas><button id="clearSig" type="button" class="btn btn-soft" style="margin-top:8px">Effacer</button></div><div class="notice">Le rapport, les photos et la signature sont sauvegardés dans la V5.</div><div class="actions"><button id="validateReport" type="button" class="btn btn-primary">Valider le rapport</button><button id="back" type="button" class="btn btn-soft">Retour</button></div></form></div>');
  $("#logout").onclick=logout;$("#back").onclick=render;setupSig(a.signature);
  let newBefore=null,newAfter=null;bindPhotoInput("#photosBefore","#beforePreview",x=>newBefore=x);bindPhotoInput("#photosAfter","#afterPreview",x=>newAfter=x);
  if($("#needSecond"))$("#needSecond").onchange=e=>{$("#secondFields").style.display=e.target.checked?"block":"none";$("#secondDate").required=e.target.checked;$("#secondTime").required=e.target.checked};
@@ -776,12 +776,19 @@ async function report(id){
   state.reportSaving=true;
   btn.disabled=true;btn.textContent="Validation...";
   try{
-   const {data:updated,error}=await sb.rpc("complete_intervention",{
-    p_intervention_id:a.id,
-    p_report:reportText,
-    p_amount:amount?Number(amount):null,
-    p_payment:payment||null
-   });
+   const {data:updated,error}=diagnosticMode
+    ? await sb.rpc("complete_diagnostic_only",{
+       p_intervention_id:a.id,
+       p_note:reportText,
+       p_amount:amount?Number(amount):null,
+       p_payment:payment||null
+      })
+    : await sb.rpc("complete_intervention",{
+       p_intervention_id:a.id,
+       p_report:reportText,
+       p_amount:amount?Number(amount):null,
+       p_payment:payment||null
+      });
    if(error)throw error;
    const saved=Array.isArray(updated)?updated[0]:updated;
    if(!saved||saved.status!=="done")throw new Error("Le rapport n’a pas pu être validé.");
@@ -799,7 +806,7 @@ async function report(id){
 
    await loadData();
    state.reportSaving=false;
-   alert(mediaErrors.length?"Rapport validé. La fiche est terminée, mais certains médias n’ont pas pu être enregistrés : "+mediaErrors.join(", "):"Rapport validé. La fiche client est terminée.");
+   alert(mediaErrors.length?"Rapport validé. La fiche est terminée, mais certains médias n’ont pas pu être enregistrés : "+mediaErrors.join(", "):(diagnosticMode?"Diagnostic clôturé avec le rapport complet.":"Rapport validé. La fiche client est terminée."));
    state.date=a.date;render()
   }catch(err){
    state.reportSaving=false;
@@ -863,7 +870,7 @@ function generateReportPdf(a,secondVisit=null,mode="download"){
  const ensure=n=>{if(y+(n||12)>280){doc.addPage();y=18}},lv=(l,v)=>{if(v===undefined||v===null||String(v).trim()==="")return;ensure(10);doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(...muted);doc.text(l.toUpperCase(),margin,y);doc.setFont("helvetica","normal");doc.setFontSize(10.5);doc.setTextColor(...dark);const lines=doc.splitTextToSize(String(v),112);doc.text(lines,81,y);y+=Math.max(8,lines.length*5.2)},sec=t=>{ensure(14);y+=2;doc.setFillColor(...light);doc.roundedRect(margin,y-5,contentW,10,2,2,"F");doc.setTextColor(...green);doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text(t.toUpperCase(),margin+4,y+1.5);y+=11};
  const company=state.company||{},full=[a.clientFirstName,a.clientLastName].filter(Boolean).join(" ")||a.client||"Client";doc.setFillColor(...green);doc.roundedRect(margin,12,contentW,36,3,3,"F");doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(18);doc.text((company.name||"Compagnie des Nuisibles").toUpperCase(),margin+6,23);doc.setFont("helvetica","normal");doc.setFontSize(8.5);const l1=[company.siret?"SIRET "+company.siret:"",company.phone||"",company.email||""].filter(Boolean).join(" · ");if(l1)doc.text(l1,margin+6,30,{maxWidth:145});const l2=[company.address||"",company.website||""].filter(Boolean).join(" · ");if(l2)doc.text(l2,margin+6,36,{maxWidth:145});doc.setFont("helvetica","bold");doc.setFontSize(11);doc.text("RAPPORT · PASSAGE "+(a.passage||1),pageW-margin-6,39,{align:"right"});y=57;
  sec("Fiche client");lv("Nom",a.clientLastName||a.client);lv("Prénom",a.clientFirstName);lv("Téléphone",a.clientPhone);lv("E-mail",a.clientEmail);lv("Adresse",a.address);lv("Informations / consignes",a.notes);
- sec("Intervention");lv("Prestation",a.type);lv("Date / horaire",a.date+" · "+a.start+" - "+a.end);lv("Technicien",a.technician);lv("Montant TTC",a.amount?Number(a.amount).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €":"Non renseigné");lv("Paiement",a.payment||"Non renseigné");
+ sec("Intervention");lv("Type de clôture",a.completionType==="diagnostic_only"?"Diagnostic uniquement":"Intervention / traitement");lv("Prestation",a.type);lv("Date / horaire",a.date+" · "+a.start+" - "+a.end);lv("Technicien",a.technician);lv("Montant TTC",a.amount?Number(a.amount).toLocaleString("fr-FR",{minimumFractionDigits:2,maximumFractionDigits:2})+" €":"Non renseigné");lv("Paiement",a.payment||"Non renseigné");
  sec("Rapport technicien");doc.setFont("helvetica","normal");doc.setFontSize(10.5);doc.setTextColor(...dark);for(const line of doc.splitTextToSize(a.report||"Aucune observation renseignée.",contentW)){ensure(6);doc.text(line,margin,y);y+=5.5}y+=3;
  const photos=(title,arr)=>{if(!arr?.length)return;sec(title);const gap=5,w=(contentW-gap)/2,h=58;arr.forEach((src,i)=>{if(i%2===0)ensure(h+8);const x=margin+(i%2)*(w+gap);try{doc.addImage(src,"JPEG",x,y,w,h,undefined,"FAST")}catch(_){try{doc.addImage(src,"PNG",x,y,w,h,undefined,"FAST")}catch(__){}}if(i%2===1||i===arr.length-1)y+=h+6})};photos("Photos avant intervention",a.photosBefore);photos("Photos après intervention",a.photosAfter);
  if(a.signature){sec("Signature client");ensure(38);doc.setDrawColor(210,225,218);doc.roundedRect(margin,y,90,32,2,2,"S");try{doc.addImage(a.signature,"PNG",margin+3,y+3,84,26,undefined,"FAST")}catch(_){}y+=39}
