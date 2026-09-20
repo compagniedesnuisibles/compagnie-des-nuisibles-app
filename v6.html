@@ -201,9 +201,26 @@ function renderAdmin(){
  $("#logout").onclick=async()=>{await sb.auth.signOut();state.user=null;render()};
  $$("[data-tab]").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;renderAdmin()});
  if($("#newIntervention"))$("#newIntervention").onclick=()=>showInterventionModal();
- $("[data-new-intervention]").forEach(b=>b.onclick=e=>{e.preventDefault();showInterventionModal()});
+ $$("[data-new-intervention]").forEach(b=>b.onclick=e=>{e.preventDefault();showInterventionModal()});
+ $$(".client-tech-select").forEach(sel=>sel.onchange=async()=>{
+   const value=sel.value||null;sel.disabled=true;
+   const {error}=await sb.rpc("assign_client_technician",{p_client_id:sel.dataset.client,p_technician_id:value});
+   if(error){sel.disabled=false;alert("Attribution impossible : "+error.message);await loadAll();return renderAdmin()}
+   await loadAll();renderAdmin()
+ });
+ const gs=$("#globalSearch"),gr=$("#globalResults");
+ if(gs&&gr)gs.oninput=()=>{
+   const q=gs.value.trim().toLowerCase();
+   if(q.length<2){gr.classList.add("hidden");gr.innerHTML="";return}
+   const ints=state.interventions.filter(i=>[i.client_first_name,i.client_last_name,i.client_phone,i.client_email,i.address,i.service_type,i.technician?.name].join(" ").toLowerCase().includes(q)).slice(0,6);
+   const cls=state.clients.filter(x=>[x.first_name,x.last_name,x.company_name,x.phone,x.email,x.billing_address].join(" ").toLowerCase().includes(q)).slice(0,5);
+   gr.innerHTML=ints.map(i=>'<div data-search-tab="interventions" style="padding:11px 12px;border-bottom:1px solid #edf2ef;cursor:pointer"><strong>'+esc([i.client_first_name,i.client_last_name].filter(Boolean).join(" "))+' · '+esc(i.service_type||"")+'</strong><div class="muted tiny">'+esc(i.address||"")+' · '+esc(i.intervention_date)+'</div></div>').join("")+
+     cls.map(x=>'<div data-search-tab="clients" style="padding:11px 12px;border-bottom:1px solid #edf2ef;cursor:pointer"><strong>'+esc(x.company_name||[x.first_name,x.last_name].filter(Boolean).join(" "))+'</strong><div class="muted tiny">'+esc(x.phone||"")+' · '+esc(x.billing_address||"")+'</div></div>').join("");
+   gr.classList.toggle("hidden",!(ints.length||cls.length));
+   $$("[data-search-tab]",gr).forEach(x=>x.onclick=()=>{state.tab=x.dataset.searchTab;renderAdmin()})
+ };
  if(state.tab==="planning"){
-   $("[data-plan-view]").forEach(b=>b.onclick=()=>{state.planningView=b.dataset.planView;renderAdmin()});
+   $$("[data-plan-view]").forEach(b=>b.onclick=()=>{state.planningView=b.dataset.planView;renderAdmin()});
    const move=dir=>{let d=localDate(state.planningDate);if(state.planningView==="day")d.setDate(d.getDate()+dir);else if(state.planningView==="week")d.setDate(d.getDate()+7*dir);else if(state.planningView==="month")d.setMonth(d.getMonth()+dir);else d.setFullYear(d.getFullYear()+dir);state.planningDate=isoDate(d);renderAdmin()};
    $("#planPrev").onclick=()=>move(-1);$("#planNext").onclick=()=>move(1);$("#planToday").onclick=()=>{state.planningDate=isoDate(new Date());renderAdmin()}
  }
