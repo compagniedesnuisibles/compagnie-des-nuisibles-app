@@ -289,58 +289,49 @@ function showInterventionModal(){
    results.classList.add("hidden")
  };
  const searchAddress=async q=>{
-   // 1) Proxy backend (IGN + fallbacks)
-   try{
-     const url=SUPABASE_URL+"/functions/v1/address-search?q="+encodeURIComponent(q);
-     const res=await fetch(url,{headers:{"Accept":"application/json","apikey":SUPABASE_KEY}});
-     if(res.ok){
-       const json=await res.json();
-       if(Array.isArray(json.features)&&json.features.length)return json.features
+   const url="https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=fr&limit=8&accept-language=fr&q="+encodeURIComponent(q);
+   const res=await fetch(url,{headers:{"Accept":"application/json"}});
+   if(!res.ok)throw new Error("Recherche adresse HTTP "+res.status);
+   const arr=await res.json();
+   return (Array.isArray(arr)?arr:[]).map(x=>{
+     const a=x.address||{},city=a.city||a.town||a.village||a.municipality||a.suburb||"";
+     const road=a.road||a.pedestrian||a.residential||a.neighbourhood||"";
+     const house=a.house_number||"";
+     const postcode=a.postcode||"";
+     const shortLabel=[house,road,postcode,city].filter(Boolean).join(" ").trim();
+     return {
+       type:"Feature",
+       geometry:{type:"Point",coordinates:[Number(x.lon),Number(x.lat)]},
+       properties:{
+         label:shortLabel||x.display_name||q,
+         name:road||x.name||"",
+         postcode,
+         city,
+         type:x.type||"address"
+       }
      }
-   }catch(_){}
-   // 2) Secours direct Photon / OpenStreetMap
-   try{
-     const u="https://photon.komoot.io/api/?lang=fr&limit=8&q="+encodeURIComponent(q);
-     const res=await fetch(u,{headers:{"Accept":"application/json"}});
-     if(res.ok){
-       const json=await res.json();
-       return (Array.isArray(json.features)?json.features:[]).map(f=>{
-         const p=f.properties||{},g=f.geometry?.coordinates||[];
-         return {
-           type:"Feature",
-           geometry:f.geometry||null,
-           properties:{
-             label:[p.housenumber,p.street,p.postcode,p.city].filter(Boolean).join(" ")||p.name||q,
-             name:p.street||p.name||"",
-             postcode:p.postcode||"",
-             city:p.city||p.locality||"",
-             type:p.type||"address"
-           }
-         }
-       })
-     }
-   }catch(_){}
-   return []
+   })
  };
  input.oninput=()=>{
    chosen=null;lastFeatures=[];form.postal_code.value="";form.city.value="";form.latitude.value="";form.longitude.value="";
-   clearTimeout(timer);const q=input.value.trim();
+   clearTimeout(timer);
+   const q=input.value.trim();
    if(q.length<3){results.classList.add("hidden");results.innerHTML="";return}
-   results.classList.remove("hidden");results.innerHTML='<div class="address-option"><span>Recherche de l’adresse…</span></div>';
+   results.classList.remove("hidden");
+   results.innerHTML='<div class="address-option"><span>Recherche…</span></div>';
    timer=setTimeout(async()=>{
-     try{
-       const feats=await searchAddress(q);lastFeatures=feats;
-       results.innerHTML=feats.length
-         ? feats.map((f,idx)=>'<div class="address-option" data-addr="'+idx+'"><strong>'+esc(f.properties?.label||f.properties?.name||"Adresse")+'</strong><span>'+esc([f.properties?.postcode,f.properties?.city||f.properties?.municipality].filter(Boolean).join(" "))+'</span></div>').join("")
-         : '<div class="address-option" id="useTypedAddress"><strong>Utiliser cette adresse</strong><span>'+esc(q)+' — enregistrer telle quelle</span></div>';
-       $("[data-addr]",results).forEach(el=>el.onclick=()=>fillAddress(feats[Number(el.dataset.addr)]));
-     }catch(err){
-       console.error("Adresse:",err);
-       results.classList.remove("hidden");
-       results.innerHTML='<div class="address-option" id="useTypedAddress"><strong>Utiliser cette adresse</strong><span>'+esc(q)+' — enregistrer telle quelle</span></div>';
-       $("#useTypedAddress",results).onclick=()=>{chosen={properties:{label:q,postcode:"",city:""},geometry:null};input.value=q;results.classList.add("hidden")}
+     let feats=[];
+     try{feats=await searchAddress(q)}catch(err){console.error("Adresse:",err)}
+     lastFeatures=feats;
+     if(feats.length){
+       results.innerHTML=feats.map((f,idx)=>'<div class="address-option" data-addr="'+idx+'"><strong>'+esc(f.properties.label||"Adresse")+'</strong><span>'+esc([f.properties.postcode,f.properties.city].filter(Boolean).join(" "))+'</span></div>').join("")+
+         '<div class="address-option" id="useTypedAddress"><strong>Utiliser quand même mon adresse</strong><span>'+esc(q)+'</span></div>';
+       $$("[data-addr]",results).forEach(el=>el.onclick=()=>fillAddress(feats[Number(el.dataset.addr)]));
+     }else{
+       results.innerHTML='<div class="address-option" id="useTypedAddress"><strong>Utiliser cette adresse</strong><span>'+esc(q)+'</span></div>';
      }
-   },250)
+     if($("#useTypedAddress",results))$("#useTypedAddress",results).onclick=()=>{chosen={properties:{label:q,postcode:"",city:""},geometry:null};input.value=q;results.classList.add("hidden")};
+   },350)
  };
  form.onsubmit=async e=>{
    e.preventDefault();
@@ -355,8 +346,9 @@ function showInterventionModal(){
      if(!chosen){
        try{
          const feats=lastFeatures.length?lastFeatures:await searchAddress(rawAddress);
-         if(feats.length)fillAddress(feats[0])
-       }catch(_){}
+         if(feats.length)fillAddress(feats[0]);
+         else chosen={properties:{label:rawAddress,postcode:"",city:""},geometry:null}
+       }catch(_){chosen={properties:{label:rawAddress,postcode:"",city:""},geometry:null}}
      }
      const d=Object.fromEntries(new FormData(form));
      const {error}=await sb.rpc("create_intervention_with_client",{
