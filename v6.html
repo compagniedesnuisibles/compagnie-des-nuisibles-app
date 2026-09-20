@@ -344,6 +344,7 @@ function showInterventionModal(){
      alert("Création impossible : "+(err?.message||err))
    }
  }
+}
 function showRouteChoices(i){
  const wrap=document.createElement("div");wrap.className="modal-backdrop";wrap.id="routeModal";
  const has=Number.isFinite(Number(i.latitude))&&Number.isFinite(Number(i.longitude));
